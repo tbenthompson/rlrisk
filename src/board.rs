@@ -1,3 +1,4 @@
+use ndarray::Array;
 use rand::Rng;
 
 pub const N_MAX_CARDS: usize = 0;
@@ -91,15 +92,17 @@ impl Board {
         }
         return true;
     }
-    
-    pub fn to_vector(&self) -> Vec<f32> {
-        let mut out: Vec<f32> = vec![];
-        
+
+    pub fn to_array(&self) -> ndarray::Array1<f32> {
+        let dof_per_territory = 1 + N_MAX_PLAYERS;
+        let mut out = Array::zeros((N_MAX_TERRITORIES * dof_per_territory,));
+
         for i in 0..N_MAX_TERRITORIES {
-            out.push(self.territories[i].army_count as f32);
+            out[dof_per_territory * i + 0] = self.territories[i].army_count as f32;
             // one hot encode owner
             for j in 0..N_MAX_PLAYERS {
-                out.push((self.territories[i].owner == j) as i32 as f32);
+                out[dof_per_territory * i + 1 + j] =
+                    (self.territories[i].owner == j) as i32 as f32;
             }
         }
         return out;
