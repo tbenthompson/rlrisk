@@ -1,1 +1,3 @@
-/target
+rlrisk/risk_ext.so
+target
+*.egg-info
