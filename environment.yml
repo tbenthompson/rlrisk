@@ -1,0 +1,14 @@
+name: rlrisk
+channels:
+  - conda-forge
+dependencies:
+  - numpy
+  - scipy
+  - scikit-learn
+  - black
+  - flake8
+  - isort
+  - pytest
+  - pytest-cov
+  - pre-commit
+  - pip

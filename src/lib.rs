@@ -29,6 +29,9 @@ mod board;
 mod strategy;
 use board::Board;
 
+use pyo3::prelude::*;
+use pyo3::wrap_pyfunction;
+
 
 struct Game {
     board: Board,
@@ -77,7 +80,7 @@ impl Game {
                 self.board
                     .fortify(from, to, self.board.territories[from].army_count - 1);
                 if self.board.player_data[player_idx].n_controlled == self.board.n_territories {
-                    println!("GAME OVER");
+                    println!("GAME OVER WINNER {}", player_idx);
                     return true;
                 }
             }
@@ -130,7 +133,8 @@ fn setup_board(players: &Vec<Box<dyn strategy::Strategy>>) -> Board {
     board
 }
 
-fn main() {
+#[pyfunction]
+fn run_game() {
     let players: Vec<Box<dyn strategy::Strategy>> = vec![
         Box::new(strategy::Dumb { player_idx: 0 }),
         Box::new(strategy::Dumb { player_idx: 1 }),
@@ -141,4 +145,11 @@ fn main() {
     };
     game.play();
     println!("Board: {:?}", game.board);
+}
+
+#[pymodule]
+fn risk_ext(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(run_game, m)?)?;
+
+    Ok(())
 }
