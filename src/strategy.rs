@@ -3,23 +3,6 @@ use crate::board;
 pub trait Strategy {
     fn get_player_idx(&self) -> usize;
 
-    /* Select territories to place troops at the beginning of the game. This function will be
-     * called multiple times and returns the territory index in which to place one troop each time.
-     */
-    fn starting_step(&self, board: &board::Board) -> usize {
-        for t_i in 0..board.n_territories {
-            if board.territories[t_i].owner == board::N_MAX_PLAYERS {
-                return t_i;
-            }
-        }
-        for t_i in 0..board.n_territories {
-            if board.territories[t_i].owner == self.get_player_idx() {
-                return t_i;
-            }
-        }
-        return board::N_MAX_TERRITORIES;
-    }
-
     /*
      * A reinforce is specified by the (territory_idx, n_armies) referring to the territory we
      * reinforce and the number to place at that location.

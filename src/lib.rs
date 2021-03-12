@@ -28,86 +28,13 @@
 mod board;
 mod strategy;
 use board::Board;
+use strategy::Strategy;
 
 use numpy::IntoPyArray;
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 
-struct Game {
-    verbose: bool,
-    board: Board,
-    players: Vec<Box<dyn strategy::Strategy>>,
-}
-
-impl Game {
-    fn play(&mut self) -> usize {
-        let max_turns = 100;
-        for turn_idx in 0..max_turns {
-            for player_idx in 0..self.board.n_players {
-                let winner = self.turn(turn_idx, player_idx);
-                if winner != board::N_MAX_PLAYERS {
-                    return winner;
-                }
-                assert!(self.board.verify_state());
-            }
-        }
-        return board::N_MAX_PLAYERS;
-    }
-
-    /* Returns the winner if the game is over. */
-    fn turn(&mut self, _turn_idx: usize, player_idx: usize) -> usize {
-        if self.verbose {
-            println!(
-                "Turn ({}, {}), Territories: {:?}",
-                _turn_idx, player_idx, self.board.territories
-            );
-        }
-        let p = &self.players[player_idx];
-
-        let mut n_reinforcements = 1;
-        while n_reinforcements != 0 {
-            let (territory_idx, mut count) =
-                p.reinforce_step(&self.board, n_reinforcements);
-            count = std::cmp::min(count, n_reinforcements);
-            self.board.reinforce(territory_idx, count);
-            n_reinforcements -= count;
-        }
-
-        // attack and fortify
-        let mut won_an_attack = false;
-        for _attack_idx in 0..board::N_ATTACKS_PER_TURN {
-
-            let (from, to) = p.attack_step(&self.board);
-            if !self.board.is_valid_attack(player_idx, from, to) {
-                continue;
-            }
-            let outcome = self.board.attack(from, to);
-            if self.verbose {
-                println!("Attack: {}, {}, {:?}", from, to, outcome);
-            }
-            if outcome.2 {
-                won_an_attack = true;
-                self.board
-                    .fortify(from, to, self.board.territories[from].army_count - 1);
-                if self.board.player_data[player_idx].n_controlled
-                    == self.board.n_territories
-                {
-                    // println!("GAME OVER WINNER {}", player_idx);
-                    return player_idx;
-                }
-            }
-        }
-        // fortify
-
-        // add card
-        if won_an_attack {
-            self.board.new_card(player_idx);
-        }
-        return board::N_MAX_PLAYERS;
-    }
-}
-
-fn setup_board(players: &Vec<Box<dyn strategy::Strategy>>) -> Board {
+fn setup_board() -> Board {
     let n_starting_armies = 3;
     let n_players = board::N_MAX_PLAYERS;
     let n_territories = board::N_MAX_TERRITORIES;
@@ -132,7 +59,7 @@ fn setup_board(players: &Vec<Box<dyn strategy::Strategy>>) -> Board {
 
     for _i in 0..n_starting_armies {
         for j in 0..n_players {
-            let territory_idx = players[j].starting_step(&board);
+            let territory_idx = starting_place(&board, j);
             if board.territories[territory_idx].owner != j {
                 board.territories[territory_idx].owner = j;
                 board.player_data[j].n_controlled += 1;
@@ -145,6 +72,157 @@ fn setup_board(players: &Vec<Box<dyn strategy::Strategy>>) -> Board {
     board
 }
 
+fn starting_place(board: &Board, player_idx: usize) -> usize {
+    for t_i in 0..board.n_territories {
+        if board.territories[t_i].owner == board::N_MAX_PLAYERS {
+            return t_i;
+        }
+    }
+    for t_i in 0..board.n_territories {
+        if board.territories[t_i].owner == player_idx {
+            return t_i;
+        }
+    }
+    return board::N_MAX_TERRITORIES;
+}
+
+enum Phase {
+    Reinforce,
+    Attack,
+    Fortify
+}
+
+struct GameState {
+    board: Board,
+    turn_idx: usize,
+    player_idx: usize,
+    phase: Phase,
+
+    // Reinforce phase state variables
+    n_reinforcements: usize,
+
+    // Attack phase state variables
+    n_attacks_left: usize,
+    won_an_attack: bool
+}
+
+fn start_game() -> GameState {
+    let board = setup_board();
+    let n_players = board.n_players;
+
+    let mut state = GameState {
+        turn_idx: 0,
+        board: board,
+        player_idx: n_players,
+        phase: Phase::Reinforce,
+        n_reinforcements: 0,
+        n_attacks_left: 0,
+        won_an_attack: false
+    };
+
+    state.begin_next_turn();
+
+    state
+}
+
+impl GameState {
+    fn step(&mut self, arg0: usize, arg1: usize) {
+        match self.phase {
+            Phase::Reinforce => self.reinforce_step(arg0, arg1),
+            Phase::Attack => self.attack_step(arg0, arg1),
+            Phase::Fortify => self.fortify_step(),
+        }
+    }
+
+    fn begin_next_turn(&mut self) {
+        self.player_idx += 1; 
+        if self.player_idx == self.board.n_players {
+            self.turn_idx += 1;
+        }
+        self.player_idx = self.player_idx % self.board.n_players;
+        self.begin_reinforce_phase();
+    }
+
+    fn begin_reinforce_phase(&mut self) {
+        self.phase = Phase::Reinforce;
+        self.n_reinforcements = 1;
+    }
+
+    fn reinforce_step(&mut self, territory_idx: usize, requested_count: usize) {
+        let count = std::cmp::min(requested_count, self.n_reinforcements);
+        self.board.reinforce(territory_idx, count);
+        self.n_reinforcements -= count;
+        if self.n_reinforcements == 0 {
+            self.begin_attack_phase();
+        }
+    }
+
+    fn begin_attack_phase(&mut self) {
+        self.phase = Phase::Attack;
+        self.n_attacks_left = board::N_ATTACKS_PER_TURN;
+        self.won_an_attack = false;
+    }
+
+    fn attack_step(&mut self, from: usize, to: usize) {
+        self.n_attacks_left -= 1;
+
+        if self.board.is_valid_attack(self.player_idx, from, to) {
+            let outcome = self.board.attack(from, to);
+            // if self.verbose {
+            println!("Attack: {}, {}, {:?}", from, to, outcome);
+            // }
+            if outcome.2 {
+                self.won_an_attack = true;
+                self.board
+                    .fortify(from, to, self.board.territories[from].army_count - 1);
+                if self.board.player_data[self.player_idx].n_controlled
+                    == self.board.n_territories
+                {
+                    println!("GAME OVER WINNER {}", self.player_idx);
+                    // return player_idx;
+                    // TODO: WINNER
+                }
+            }
+        }
+
+        if self.n_attacks_left == 0 {
+            self.begin_fortify_phase();
+        }
+    }
+
+    fn begin_fortify_phase(&mut self) {
+        self.phase = Phase::Fortify;
+        self.begin_next_turn();
+    }
+    fn fortify_step(&mut self) {
+    }
+}
+
+#[pyfunction]
+fn tester() {
+    let mut state = start_game();
+
+    let players = vec![
+        strategy::Dumb { player_idx: 0 },
+        strategy::Dumb { player_idx: 1 },
+    ];
+
+    for _i in 0..100 {
+        match state.phase {
+            Phase::Reinforce => {
+                let (arg0, arg1) = players[state.player_idx].reinforce_step(&state.board, state.n_reinforcements);
+                state.step(arg0, arg1)
+            }
+            Phase::Attack => {
+                let (arg0, arg1) = players[state.player_idx].attack_step(&state.board);
+                state.step(arg0, arg1)
+            }
+            Phase::Fortify => {
+            }
+        }
+    }
+}
+
 #[pyfunction]
 fn run_dumb_game(py: Python, verbose: bool) -> (usize, &numpy::PyArray1<f32>) {
     let players: Vec<Box<dyn strategy::Strategy>> = vec![
@@ -153,7 +231,7 @@ fn run_dumb_game(py: Python, verbose: bool) -> (usize, &numpy::PyArray1<f32>) {
     ];
     let mut game = Game {
         verbose: verbose,
-        board: setup_board(&players),
+        board: setup_board(),
         players: players,
     };
     let winner = game.play();
@@ -190,7 +268,7 @@ fn run_py_vs_dumb_game(callback: PyObject, verbose: bool) -> usize {
     ];
     let mut game = Game {
         verbose: verbose,
-        board: setup_board(&players),
+        board: setup_board(),
         players: players,
     };
     return game.play();
@@ -200,6 +278,7 @@ fn run_py_vs_dumb_game(callback: PyObject, verbose: bool) -> usize {
 fn risk_ext(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_dumb_game, m)?)?;
     m.add_function(wrap_pyfunction!(run_py_vs_dumb_game, m)?)?;
+    m.add_function(wrap_pyfunction!(tester, m)?)?;
 
     Ok(())
 }
