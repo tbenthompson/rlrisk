@@ -107,6 +107,16 @@ impl Board {
         }
         return out;
     }
+
+    pub fn is_valid_attack(&self, player_idx: usize, from: usize, to: usize) -> bool {
+        if from == N_MAX_TERRITORIES || self.territories[from].owner != player_idx {
+            return false;
+        }
+        if to == N_MAX_TERRITORIES || self.territories[to].owner == player_idx {
+            return false;
+        }
+        return true;
+    }
 }
 
 fn attack_mechanics(

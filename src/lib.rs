@@ -34,6 +34,7 @@ use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 
 struct Game {
+    verbose: bool,
     board: Board,
     players: Vec<Box<dyn strategy::Strategy>>,
 }
@@ -53,12 +54,14 @@ impl Game {
         return board::N_MAX_PLAYERS;
     }
 
-    /* Returns true if the game is over. */
+    /* Returns the winner if the game is over. */
     fn turn(&mut self, _turn_idx: usize, player_idx: usize) -> usize {
-        // println!(
-        //     "Turn ({}, {}), Territories: {:?}",
-        //     _turn_idx, player_idx, self.board.territories
-        // );
+        if self.verbose {
+            println!(
+                "Turn ({}, {}), Territories: {:?}",
+                _turn_idx, player_idx, self.board.territories
+            );
+        }
         let p = &self.players[player_idx];
 
         let mut n_reinforcements = 1;
@@ -73,16 +76,15 @@ impl Game {
         // attack and fortify
         let mut won_an_attack = false;
         for _attack_idx in 0..board::N_ATTACKS_PER_TURN {
-            let (from, to) = p.attack_step(&self.board);
-            if self.board.territories[from].owner != player_idx {
-                continue;
-            }
-            if self.board.territories[to].owner == player_idx {
-                continue;
-            }
 
+            let (from, to) = p.attack_step(&self.board);
+            if !self.board.is_valid_attack(player_idx, from, to) {
+                continue;
+            }
             let outcome = self.board.attack(from, to);
-            // println!("Attack: {}, {}, {:?}", from, to, outcome);)
+            if self.verbose {
+                println!("Attack: {}, {}, {:?}", from, to, outcome);
+            }
             if outcome.2 {
                 won_an_attack = true;
                 self.board
@@ -144,12 +146,13 @@ fn setup_board(players: &Vec<Box<dyn strategy::Strategy>>) -> Board {
 }
 
 #[pyfunction]
-fn run_dumb_game(py: Python) -> (usize, &numpy::PyArray1<f32>) {
+fn run_dumb_game(py: Python, verbose: bool) -> (usize, &numpy::PyArray1<f32>) {
     let players: Vec<Box<dyn strategy::Strategy>> = vec![
         Box::new(strategy::Dumb { player_idx: 0 }),
         Box::new(strategy::Dumb { player_idx: 1 }),
     ];
     let mut game = Game {
+        verbose: verbose,
         board: setup_board(&players),
         players: players,
     };
@@ -171,7 +174,7 @@ impl strategy::Strategy for PyCallbackStrategy {
 
     fn attack_step(&self, board: &board::Board) -> (usize, usize) {
         Python::with_gil(|py| {
-            // NOTE: This is only valid when
+            // NOTE: This is only valid when the python player is index 0
             let state = board.to_array().into_pyarray(py);
             let result = self.callback.call1(py, (state,));
             return result.unwrap().extract::<(usize, usize)>(py).unwrap();
@@ -180,12 +183,13 @@ impl strategy::Strategy for PyCallbackStrategy {
 }
 
 #[pyfunction]
-fn run_py_vs_dumb_game(callback: PyObject) -> usize {
+fn run_py_vs_dumb_game(callback: PyObject, verbose: bool) -> usize {
     let players: Vec<Box<dyn strategy::Strategy>> = vec![
         Box::new(PyCallbackStrategy { player_idx: 0, callback: callback }),
         Box::new(strategy::Dumb { player_idx: 1 }),
     ];
     let mut game = Game {
+        verbose: verbose,
         board: setup_board(&players),
         players: players,
     };

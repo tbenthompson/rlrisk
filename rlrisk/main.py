@@ -5,9 +5,9 @@ def strategy(state):
     # print(state)
     return (0,1)
 
-winner = risk_ext.run_py_vs_dumb_game(strategy)
+winner = risk_ext.run_py_vs_dumb_game(strategy, True)
 print(winner)
 
 n = 1000
-winners = [risk_ext.run_py_vs_dumb_game(strategy) for i in range(n)]
+winners = [risk_ext.run_py_vs_dumb_game(strategy, False) for i in range(n)]
 print(np.unique(winners, return_counts=True))
