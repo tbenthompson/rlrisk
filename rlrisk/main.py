@@ -1,11 +1,25 @@
 import time
 import numpy as np
 import risk_ext
+print(dir(risk_ext))
+#
+# start = time.time()
+# for i in range(100):
+#     risk_ext.tester()
+# print('runtime', time.time() - start)
 
-start = time.time()
-for i in range(1000000):
-    risk_ext.tester()
-print('runtime', time.time() - start)
+game = risk_ext.start_game()
+def game_matrix():
+    return game.board_state.reshape((game.n_territories, 1 + game.n_players))
+
+print(game, game.board_state)
+game.step(0, 1)
+print(game, game.board_state)
+game.step(0, 1)
+print(game, game.board_state)
+game.step(0, 1)
+print(game, game.board_state)
+__import__('ipdb').set_trace()
 #
 # def strategy(state):
 #     # print(state)

@@ -2,7 +2,7 @@ use ndarray::Array;
 use rand::prelude::*;
 
 const N_MAX_CARDS: usize = 0;
-const N_MAX_TERRITORIES: usize = 2;
+const N_MAX_TERRITORIES: usize = 3;
 const N_MAX_PLAYERS: usize = 2;
 
 #[derive(Debug, Clone, Copy)]
@@ -32,7 +32,7 @@ pub struct Board {
     pub territories: [Territory; N_MAX_TERRITORIES],
 
     pub rng: rand::rngs::StdRng,
-    dice_uniform: rand::distributions::Uniform<u8>
+    dice_uniform: rand::distributions::Uniform<u8>,
 }
 
 impl Board {
@@ -61,10 +61,15 @@ impl Board {
         (attacker_deaths, defender_deaths, conquer)
     }
 
-    pub fn fortify(&mut self, from: usize, to: usize, n_armies: usize) {
-        assert!(n_armies < self.territories[from].army_count);
+    pub fn fortify(&mut self, from: usize, to: usize, n_requested_armies: usize) -> usize {
+        if self.territories[from].owner != self.territories[to].owner {
+            return 0;
+        }
+        let n_armies =
+            std::cmp::min(n_requested_armies, self.territories[from].army_count - 1);
         self.territories[from].army_count -= n_armies;
         self.territories[to].army_count += n_armies;
+        return n_armies;
     }
 
     pub fn new_card(&mut self, player_idx: usize) {
@@ -126,7 +131,7 @@ impl Board {
 fn attack_mechanics(
     n_attacker: usize,
     n_defender: usize,
-    dice: [u8; 5]
+    dice: [u8; 5],
 ) -> (usize, usize) {
     assert!(n_attacker <= 3);
     assert!(n_defender == 2 || n_defender == 1);
@@ -136,7 +141,7 @@ fn attack_mechanics(
     }
 
     let mut attacker_dice: Vec<u8> = dice[0..n_attacker].to_vec();
-    let mut defender_dice: Vec<u8> = dice[3..(3+n_defender)].to_vec();
+    let mut defender_dice: Vec<u8> = dice[3..(3 + n_defender)].to_vec();
     attacker_dice.sort();
     defender_dice.sort();
 
@@ -178,7 +183,7 @@ pub fn setup_board() -> Board {
         }; N_MAX_TERRITORIES],
 
         rng: StdRng::from_seed([0; 32]),
-        dice_uniform: rand::distributions::Uniform::from(0..6)
+        dice_uniform: rand::distributions::Uniform::from(0..6),
     };
 
     for _i in 0..n_starting_armies {
@@ -217,11 +222,11 @@ mod tests {
 
     #[test]
     fn test_attack_mechanics() {
-        assert_eq!(attack_mechanics(3, 2, [5,5,5,5,5]), (2, 0));
-        assert_eq!(attack_mechanics(3, 2, [5,5,5,4,4]), (0, 2));
-        assert_eq!(attack_mechanics(1, 1, [5,0,0,5,0]), (1, 0));
-        assert_eq!(attack_mechanics(1, 2, [4,0,0,3,5]), (1, 0));
-        assert_eq!(attack_mechanics(0, 2, [4,0,0,3,5]), (0, 0));
+        assert_eq!(attack_mechanics(3, 2, [5, 5, 5, 5, 5]), (2, 0));
+        assert_eq!(attack_mechanics(3, 2, [5, 5, 5, 4, 4]), (0, 2));
+        assert_eq!(attack_mechanics(1, 1, [5, 0, 0, 5, 0]), (1, 0));
+        assert_eq!(attack_mechanics(1, 2, [4, 0, 0, 3, 5]), (1, 0));
+        assert_eq!(attack_mechanics(0, 2, [4, 0, 0, 3, 5]), (0, 0));
     }
 
     #[rstest(n_a, n_d, dice,
@@ -232,5 +237,22 @@ mod tests {
     #[should_panic]
     fn test_bad_mechanics_input(n_a: usize, n_d: usize, dice: [u8; 5]) {
         attack_mechanics(n_a, n_d, dice);
+    }
+
+    #[test]
+    fn test_fortify_fails_across_enemy_lines() {
+        let mut board = setup_board();
+        let old_state = board.to_array();
+        board.fortify(0, 1, 1);
+        assert_eq!(old_state, board.to_array());
+    }
+
+    #[test]
+    fn test_fortify_too_many() {
+        let mut board = setup_board();
+        assert_eq!(board.territories[0].army_count, 5);
+        board.fortify(0, 2, 20);
+        assert_eq!(board.territories[0].army_count, 1);
+        assert_eq!(board.territories[2].army_count, 5);
     }
 }

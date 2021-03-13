@@ -5,7 +5,7 @@ authors = ["Ben Thompson <t.ben.thompson@gmail.com>"]
 edition = "2018"
 
 [lib]
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 numpy = "0.13"
@@ -14,7 +14,10 @@ rstest = "*"
 
 [dependencies.pyo3]
 version = "0.13"
-features = ["extension-module"]
 
 [dependencies.rand]
 version = "*"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
