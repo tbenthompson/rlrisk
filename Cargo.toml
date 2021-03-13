@@ -1,16 +1,16 @@
 [package]
-name = "rlrisk"
+name = "risk_ext"
 version = "0.1.0"
 authors = ["Ben Thompson <t.ben.thompson@gmail.com>"]
 edition = "2018"
 
 [lib]
-name = "risk_ext"
-crate-type = ["cdylib"]
+crate-type = ["rlib"]
 
 [dependencies]
 numpy = "0.13"
 ndarray = "0.14"
+rstest = "*"
 
 [dependencies.pyo3]
 version = "0.13"

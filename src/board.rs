@@ -1,10 +1,9 @@
 use ndarray::Array;
-use rand::Rng;
+use rand::prelude::*;
 
-pub const N_MAX_CARDS: usize = 0;
-pub const N_MAX_TERRITORIES: usize = 3;
-pub const N_MAX_PLAYERS: usize = 2;
-pub const N_ATTACKS_PER_TURN: usize = 1;
+const N_MAX_CARDS: usize = 0;
+const N_MAX_TERRITORIES: usize = 2;
+const N_MAX_PLAYERS: usize = 2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Territory {
@@ -32,7 +31,8 @@ pub struct Board {
     pub n_territories: usize,
     pub territories: [Territory; N_MAX_TERRITORIES],
 
-    pub rng: rand::rngs::ThreadRng,
+    pub rng: rand::rngs::StdRng,
+    dice_uniform: rand::distributions::Uniform<u8>
 }
 
 impl Board {
@@ -44,8 +44,12 @@ impl Board {
         let t = &mut self.territories;
         let n_attacker = std::cmp::min(t[from].army_count - 1, 3);
         let n_defender = std::cmp::min(t[to].army_count, 2);
+        let mut dice: [u8; 5] = [0; 5];
+        for i in 0..5 {
+            dice[i] = self.dice_uniform.sample(&mut self.rng);
+        }
         let (attacker_deaths, defender_deaths) =
-            attack_mechanics(&mut self.rng, n_attacker, n_defender);
+            attack_mechanics(n_attacker, n_defender, dice);
         t[from].army_count -= attacker_deaths;
         t[to].army_count -= defender_deaths;
         let conquer = t[to].army_count == 0;
@@ -109,10 +113,10 @@ impl Board {
     }
 
     pub fn is_valid_attack(&self, player_idx: usize, from: usize, to: usize) -> bool {
-        if from == N_MAX_TERRITORIES || self.territories[from].owner != player_idx {
+        if from >= self.n_territories || self.territories[from].owner != player_idx {
             return false;
         }
-        if to == N_MAX_TERRITORIES || self.territories[to].owner == player_idx {
+        if to >= self.n_territories || self.territories[to].owner == player_idx {
             return false;
         }
         return true;
@@ -120,23 +124,19 @@ impl Board {
 }
 
 fn attack_mechanics(
-    rng: &mut rand::rngs::ThreadRng,
     n_attacker: usize,
     n_defender: usize,
+    dice: [u8; 5]
 ) -> (usize, usize) {
     assert!(n_attacker <= 3);
-    assert!(n_defender <= 2);
+    assert!(n_defender == 2 || n_defender == 1);
 
     if n_attacker == 0 {
         return (0, 0);
     }
 
-    let mut attacker_dice = (0..n_attacker)
-        .map(|_| -> i32 { rng.gen_range(0..6) })
-        .collect::<Vec<i32>>();
-    let mut defender_dice = (0..n_defender)
-        .map(|_| -> i32 { rng.gen_range(0..6) })
-        .collect::<Vec<i32>>();
+    let mut attacker_dice: Vec<u8> = dice[0..n_attacker].to_vec();
+    let mut defender_dice: Vec<u8> = dice[3..(3+n_defender)].to_vec();
     attacker_dice.sort();
     defender_dice.sort();
 
@@ -155,4 +155,82 @@ fn attack_mechanics(
         }
     }
     return (attacker_deaths, defender_deaths);
+}
+
+pub fn setup_board() -> Board {
+    let n_starting_armies = N_MAX_TERRITORIES * 2;
+    let n_players = N_MAX_PLAYERS;
+    let n_territories = N_MAX_TERRITORIES;
+    let mut board = Board {
+        n_players: n_players,
+        player_data: [PlayerData {
+            n_controlled: 0,
+            cards: [Card {
+                territory_idx: N_MAX_TERRITORIES,
+                color: -1,
+            }; N_MAX_CARDS],
+        }; N_MAX_PLAYERS],
+
+        n_territories: n_territories,
+        territories: [Territory {
+            army_count: 0,
+            owner: N_MAX_PLAYERS,
+        }; N_MAX_TERRITORIES],
+
+        rng: StdRng::from_seed([0; 32]),
+        dice_uniform: rand::distributions::Uniform::from(0..6)
+    };
+
+    for _i in 0..n_starting_armies {
+        for j in 0..n_players {
+            let territory_idx = starting_place(&board, j);
+            if board.territories[territory_idx].owner != j {
+                board.territories[territory_idx].owner = j;
+                board.player_data[j].n_controlled += 1;
+            }
+            board.territories[territory_idx].army_count += 1;
+        }
+    }
+
+    assert!(board.verify_state());
+    board
+}
+
+fn starting_place(board: &Board, player_idx: usize) -> usize {
+    for t_i in 0..board.n_territories {
+        if board.territories[t_i].owner == N_MAX_PLAYERS {
+            return t_i;
+        }
+    }
+    for t_i in 0..board.n_territories {
+        if board.territories[t_i].owner == player_idx {
+            return t_i;
+        }
+    }
+    return N_MAX_TERRITORIES;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[test]
+    fn test_attack_mechanics() {
+        assert_eq!(attack_mechanics(3, 2, [5,5,5,5,5]), (2, 0));
+        assert_eq!(attack_mechanics(3, 2, [5,5,5,4,4]), (0, 2));
+        assert_eq!(attack_mechanics(1, 1, [5,0,0,5,0]), (1, 0));
+        assert_eq!(attack_mechanics(1, 2, [4,0,0,3,5]), (1, 0));
+        assert_eq!(attack_mechanics(0, 2, [4,0,0,3,5]), (0, 0));
+    }
+
+    #[rstest(n_a, n_d, dice,
+        case(1, 0, [0,0,0,0,0]),
+        case(1, 3, [0,0,0,0,0]),
+        case(4, 2, [0,0,0,0,0])
+    )]
+    #[should_panic]
+    fn test_bad_mechanics_input(n_a: usize, n_d: usize, dice: [u8; 5]) {
+        attack_mechanics(n_a, n_d, dice);
+    }
 }

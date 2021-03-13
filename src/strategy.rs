@@ -51,6 +51,6 @@ impl Strategy for Dumb {
                 }
             }
         }
-        return (board::N_MAX_TERRITORIES, board::N_MAX_TERRITORIES);
+        return (board.n_territories, board.n_territories);
     }
 }
