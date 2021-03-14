@@ -3,7 +3,7 @@ use rstest::{fixture, rstest};
 
 #[fixture]
 fn game() -> risk_ext::GameState {
-    return risk_ext::start_game();
+    return risk_ext::start_game(2, 3, 0);
 }
 
 #[rstest]
@@ -46,10 +46,4 @@ fn test_attack_step(mut game: risk_ext::GameState) {
     assert_eq!(game.turn_idx, 0);
     assert_eq!(game.player_idx, 1);
     assert_eq!(game.phase, risk_ext::Phase::Attack);
-}
-
-#[test]
-fn test_board_setup() {
-    let board = risk_ext::setup_board();
-    assert!(board.verify_state());
 }

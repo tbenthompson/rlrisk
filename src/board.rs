@@ -1,9 +1,9 @@
 use ndarray::Array;
 use rand::prelude::*;
 
-const N_MAX_CARDS: usize = 0;
-const N_MAX_TERRITORIES: usize = 3;
-const N_MAX_PLAYERS: usize = 2;
+pub const N_MAX_CARDS: usize = 0;
+pub const N_MAX_TERRITORIES: usize = 3;
+pub const N_MAX_PLAYERS: usize = 3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Territory {
@@ -61,7 +61,12 @@ impl Board {
         (attacker_deaths, defender_deaths, conquer)
     }
 
-    pub fn fortify(&mut self, from: usize, to: usize, n_requested_armies: usize) -> usize {
+    pub fn fortify(
+        &mut self,
+        from: usize,
+        to: usize,
+        n_requested_armies: usize,
+    ) -> usize {
         if self.territories[from].owner != self.territories[to].owner {
             return 0;
         }
@@ -162,10 +167,8 @@ fn attack_mechanics(
     return (attacker_deaths, defender_deaths);
 }
 
-pub fn setup_board() -> Board {
+pub fn setup_board(n_players: usize, n_territories: usize, seed: [u8; 32]) -> Board {
     let n_starting_armies = N_MAX_TERRITORIES * 2;
-    let n_players = N_MAX_PLAYERS;
-    let n_territories = N_MAX_TERRITORIES;
     let mut board = Board {
         n_players: n_players,
         player_data: [PlayerData {
@@ -182,13 +185,25 @@ pub fn setup_board() -> Board {
             owner: N_MAX_PLAYERS,
         }; N_MAX_TERRITORIES],
 
-        rng: StdRng::from_seed([0; 32]),
+        rng: StdRng::from_seed(seed),
         dice_uniform: rand::distributions::Uniform::from(0..6),
     };
 
+    let rand_territory = rand::distributions::Uniform::from(0..board.n_territories);
     for _i in 0..n_starting_armies {
         for j in 0..n_players {
-            let territory_idx = starting_place(&board, j);
+            let mut territory_idx = N_MAX_TERRITORIES;
+            loop {
+                let t = rand_territory.sample(&mut board.rng);
+                if board.territories[t].owner == N_MAX_PLAYERS {
+                    territory_idx = t;
+                    break;
+                }
+                if board.territories[t].owner == j {
+                    territory_idx = t;
+                    break;
+                }
+            }
             if board.territories[territory_idx].owner != j {
                 board.territories[territory_idx].owner = j;
                 board.player_data[j].n_controlled += 1;
@@ -201,18 +216,44 @@ pub fn setup_board() -> Board {
     board
 }
 
-fn starting_place(board: &Board, player_idx: usize) -> usize {
-    for t_i in 0..board.n_territories {
-        if board.territories[t_i].owner == N_MAX_PLAYERS {
-            return t_i;
+fn load_board(territory_spec: [(usize, usize); N_MAX_TERRITORIES], seed: [u8; 32]) -> Board {
+    let mut territories = [Territory {
+        army_count: 0,
+        owner: N_MAX_PLAYERS,
+    }; N_MAX_TERRITORIES];
+    let mut n_players = 0;
+    let mut n_territories = N_MAX_TERRITORIES;
+    let mut player_data = [PlayerData {
+        n_controlled: 0,
+        cards: [Card {
+            territory_idx: N_MAX_TERRITORIES,
+            color: -1,
+        }; N_MAX_CARDS],
+    }; N_MAX_PLAYERS];
+    for i in 0..N_MAX_TERRITORIES {
+        if territory_spec[i].0 > 0 {
+            territories[i].army_count = territory_spec[i].0;
+            territories[i].owner = territory_spec[i].1;
+            n_players = std::cmp::max(n_players, territories[i].owner + 1);
+            player_data[territories[i].owner].n_controlled += 1;
+        } else {
+            n_territories = i + 1;
+            break;
         }
     }
-    for t_i in 0..board.n_territories {
-        if board.territories[t_i].owner == player_idx {
-            return t_i;
-        }
-    }
-    return N_MAX_TERRITORIES;
+
+    let board = Board {
+        n_players: n_players,
+        player_data: player_data,
+        n_territories: n_territories,
+        territories: territories,
+        rng: StdRng::from_seed(seed),
+        dice_uniform: rand::distributions::Uniform::from(0..6),
+    };
+
+    println!("{:?}", board);
+    assert!(board.verify_state());
+    board
 }
 
 #[cfg(test)]
@@ -241,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_fortify_fails_across_enemy_lines() {
-        let mut board = setup_board();
+        let mut board = setup_board(2, 3, [0; 32]);
         let old_state = board.to_array();
         board.fortify(0, 1, 1);
         assert_eq!(old_state, board.to_array());
@@ -249,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_fortify_too_many() {
-        let mut board = setup_board();
+        let mut board = load_board([(5, 0), (1, 1), (1, 0)], [0; 32]);
         assert_eq!(board.territories[0].army_count, 5);
         board.fortify(0, 2, 20);
         assert_eq!(board.territories[0].army_count, 1);

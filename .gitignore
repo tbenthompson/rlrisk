@@ -1,3 +1,4 @@
-rlrisk/risk_ext.so
+.ipynb_checkpoints
+risk_ext.so
 target
 *.egg-info

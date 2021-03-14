@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+
+rm *.so || true
+cargo build --release
+mv target/release/librisk_ext.so ./notebooks/risk_ext.so

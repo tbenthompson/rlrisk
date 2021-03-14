@@ -26,7 +26,7 @@
  * - different maps
  */
 mod board;
-pub use board::{Board, setup_board};
+pub use board::{setup_board, Board};
 
 use numpy::IntoPyArray;
 use pyo3::prelude::*;
@@ -37,7 +37,7 @@ pub enum Phase {
     Reinforce,
     Attack,
     Fortify,
-    GameOver
+    GameOver,
 }
 
 #[pyclass]
@@ -50,7 +50,7 @@ pub struct GameState {
     #[pyo3(get)]
     pub turn_idx: usize,
     #[pyo3(get)]
-    pub player_idx: usize, 
+    pub player_idx: usize,
     pub phase: Phase,
 
     // Reinforce phase state variables
@@ -58,12 +58,16 @@ pub struct GameState {
 
     // Attack phase state variables
     n_attacks_left: usize,
-    won_an_attack: bool
+    won_an_attack: bool,
 }
 
 #[pyfunction]
-pub fn start_game() -> GameState {
-    let board = board::setup_board();
+pub fn start_game(n_players: usize, n_territories: usize, seed: u64) -> GameState {
+    let mut seed_array: [u8; 32] = [0; 32];
+    for i in 0..8 {
+        seed_array[i] = seed.to_ne_bytes()[i];
+    }
+    let board = board::setup_board(n_players, n_territories, seed_array);
 
     let mut state = GameState {
         verbose: false,
@@ -73,7 +77,7 @@ pub fn start_game() -> GameState {
         phase: Phase::Reinforce,
         n_reinforcements: 0,
         n_attacks_left: 0,
-        won_an_attack: false
+        won_an_attack: false,
     };
 
     state.begin_reinforce_phase();
@@ -88,12 +92,19 @@ impl GameState {
     }
 
     fn begin_next_turn(&mut self) {
-        self.player_idx += 1; 
+        self.next_player();
+        self.begin_reinforce_phase();
+    }
+
+    fn next_player(&mut self) {
+        self.player_idx += 1;
         if self.player_idx == self.board.n_players {
             self.turn_idx += 1;
             self.player_idx = 0;
         }
-        self.begin_reinforce_phase();
+        if self.board.player_data[self.player_idx].n_controlled == 0 {
+            self.next_player();
+        }
     }
 
     fn begin_reinforce_phase(&mut self) {
@@ -116,7 +127,7 @@ impl GameState {
             self.begin_attack_phase();
         }
     }
-    
+
     fn dumb_reinforce(&mut self) {
         // Next player's reinforcement step happens automatically assigning troops to the
         // first identified territory.
@@ -163,11 +174,10 @@ impl GameState {
         self.end_turn();
     }
 
-    fn fortify_step(&mut self) {
-    }
+    fn fortify_step(&mut self) {}
 
     fn end_turn(&mut self) {
-        if self.won_an_attack  {
+        if self.won_an_attack {
             self.board.new_card(self.player_idx);
         }
         self.begin_next_turn();
@@ -184,7 +194,7 @@ impl GameState {
             Phase::GameOver => {}
         }
     }
-    
+
     #[getter]
     fn board_state<'py>(&self, py: Python<'py>) -> &'py numpy::PyArray1<f32> {
         return self.get_board_state().into_pyarray(py);
@@ -193,6 +203,16 @@ impl GameState {
     #[getter]
     fn phase(&self) -> u8 {
         return self.phase as u8;
+    }
+
+    #[getter]
+    fn n_max_players(&self) -> usize {
+        return board::N_MAX_PLAYERS;
+    }
+
+    #[getter]
+    fn n_max_territories(&self) -> usize {
+        return board::N_MAX_TERRITORIES;
     }
 
     #[getter]

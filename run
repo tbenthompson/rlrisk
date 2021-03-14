@@ -1,8 +1,0 @@
-#!/bin/bash
-set -e
-
-rm rlrisk/*.so || true
-cargo build --release
-mv target/release/librisk_ext.so rlrisk/risk_ext.so || true
-
-python rlrisk/main.py
