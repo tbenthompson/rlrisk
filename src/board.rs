@@ -192,66 +192,23 @@ pub fn setup_board(n_players: usize, n_territories: usize, seed: [u8; 32]) -> Bo
     let rand_territory = rand::distributions::Uniform::from(0..board.n_territories);
     for _i in 0..n_starting_armies {
         for j in 0..n_players {
-            let mut territory_idx = N_MAX_TERRITORIES;
-            loop {
+            let ti = loop {
                 let t = rand_territory.sample(&mut board.rng);
                 if board.territories[t].owner == N_MAX_PLAYERS {
-                    territory_idx = t;
-                    break;
+                    break t
                 }
                 if board.territories[t].owner == j {
-                    territory_idx = t;
-                    break;
+                    break t
                 }
-            }
-            if board.territories[territory_idx].owner != j {
-                board.territories[territory_idx].owner = j;
+            };
+            if board.territories[ti].owner != j {
+                board.territories[ti].owner = j;
                 board.player_data[j].n_controlled += 1;
             }
-            board.territories[territory_idx].army_count += 1;
+            board.territories[ti].army_count += 1;
         }
     }
 
-    assert!(board.verify_state());
-    board
-}
-
-fn load_board(territory_spec: [(usize, usize); N_MAX_TERRITORIES], seed: [u8; 32]) -> Board {
-    let mut territories = [Territory {
-        army_count: 0,
-        owner: N_MAX_PLAYERS,
-    }; N_MAX_TERRITORIES];
-    let mut n_players = 0;
-    let mut n_territories = N_MAX_TERRITORIES;
-    let mut player_data = [PlayerData {
-        n_controlled: 0,
-        cards: [Card {
-            territory_idx: N_MAX_TERRITORIES,
-            color: -1,
-        }; N_MAX_CARDS],
-    }; N_MAX_PLAYERS];
-    for i in 0..N_MAX_TERRITORIES {
-        if territory_spec[i].0 > 0 {
-            territories[i].army_count = territory_spec[i].0;
-            territories[i].owner = territory_spec[i].1;
-            n_players = std::cmp::max(n_players, territories[i].owner + 1);
-            player_data[territories[i].owner].n_controlled += 1;
-        } else {
-            n_territories = i + 1;
-            break;
-        }
-    }
-
-    let board = Board {
-        n_players: n_players,
-        player_data: player_data,
-        n_territories: n_territories,
-        territories: territories,
-        rng: StdRng::from_seed(seed),
-        dice_uniform: rand::distributions::Uniform::from(0..6),
-    };
-
-    println!("{:?}", board);
     assert!(board.verify_state());
     board
 }
@@ -260,6 +217,47 @@ fn load_board(territory_spec: [(usize, usize); N_MAX_TERRITORIES], seed: [u8; 32
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    fn load_board(territory_spec: [(usize, usize); N_MAX_TERRITORIES], seed: [u8; 32]) -> Board {
+        let mut territories = [Territory {
+            army_count: 0,
+            owner: N_MAX_PLAYERS,
+        }; N_MAX_TERRITORIES];
+        let mut n_players = 0;
+        let mut n_territories = N_MAX_TERRITORIES;
+        let mut player_data = [PlayerData {
+            n_controlled: 0,
+            cards: [Card {
+                territory_idx: N_MAX_TERRITORIES,
+                color: -1,
+            }; N_MAX_CARDS],
+        }; N_MAX_PLAYERS];
+        for i in 0..N_MAX_TERRITORIES {
+            if territory_spec[i].0 > 0 {
+                territories[i].army_count = territory_spec[i].0;
+                territories[i].owner = territory_spec[i].1;
+                n_players = std::cmp::max(n_players, territories[i].owner + 1);
+                player_data[territories[i].owner].n_controlled += 1;
+            } else {
+                n_territories = i + 1;
+                break;
+            }
+        }
+
+        let board = Board {
+            n_players: n_players,
+            player_data: player_data,
+            n_territories: n_territories,
+            territories: territories,
+            rng: StdRng::from_seed(seed),
+            dice_uniform: rand::distributions::Uniform::from(0..6),
+        };
+
+        println!("{:?}", board);
+        assert!(board.verify_state());
+        board
+    }
+
 
     #[test]
     fn test_attack_mechanics() {
