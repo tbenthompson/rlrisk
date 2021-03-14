@@ -35,11 +35,21 @@ fn test_init_state(n_players: usize, n_territories: usize) {
 //     assert_eq!(game.phase, risk_ext::Phase::Reinforce);
 // }
 
-#[rstest]
+#[test]
 fn test_attack_step() {
     let mut game = risk_ext::start_game(2, 3, 1, 1, 0);
     game.step(0, 1);
     // game.step(0, 1);
+    assert_eq!(game.turn_idx, 0);
+    assert_eq!(game.player_idx, 1);
+    assert_eq!(game.phase, risk_ext::Phase::Attack);
+}
+
+#[test]
+fn test_skip_attack() {
+    // five attacks per turn, but skip the turn by specifying an invalid attack
+    let mut game = risk_ext::start_game(2, 3, 1, 5, 0);
+    game.step(0, 0);
     assert_eq!(game.turn_idx, 0);
     assert_eq!(game.player_idx, 1);
     assert_eq!(game.phase, risk_ext::Phase::Attack);

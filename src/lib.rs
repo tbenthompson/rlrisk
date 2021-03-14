@@ -140,6 +140,8 @@ impl GameState {
                     return;
                 }
             }
+        } else {
+            self.n_attacks_left = 0;
         }
 
         if self.n_attacks_left == 0 {
@@ -184,6 +186,7 @@ impl GameState {
         let mut out = Array::zeros((self.board_state_size(),));
 
         let mut next_dof = 0;
+        // one hot encode which player is currently acting
         for i in 0..board::N_MAX_PLAYERS {
             out[next_dof] = (self.player_idx == i) as i32 as f32;
             next_dof += 1;
