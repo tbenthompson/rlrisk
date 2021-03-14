@@ -1,33 +1,7 @@
-/* Plan:
- * - (CHECK) simple Risk engine
- * - encode the game state as a vector
- * - try some kind of reinforcement learning algorithm
- * - vectorized/matrixify the risk engine so that we run many games at once.
- * - GPU-ify the risk engine?
- * - play with fancier methods
- * - cool idea: what if we just convert the Board struct to binary?!
- *
- * Dimensions on which we can simplify Risk rules:
- * - fewer territories (simple == 2 or 3)
- * - territory connectivity (simple == fully connected)
- * - fewer players (simple == 2)
- * - continents (simple == no continents)
- * - number of reinforcements (simple == constant)
- * - number of cards (simple == 0)
- * - number of attacks allowed per turn (simple == 1)
- * - move full stack vs choice in move size (simple == move full stack)
- * - fortification (simple == no fortification)
- *
- * Common Risk variations
- * - fixed vs progressive cards
- * - blizzards
- * - fog of war
- * - auto vs manual starting placement
- * - different maps
- */
 mod board;
 pub use board::{setup_board, Board};
 
+use ndarray::Array;
 use numpy::IntoPyArray;
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
@@ -64,7 +38,13 @@ pub struct GameState {
 }
 
 #[pyfunction]
-pub fn start_game(n_players: usize, n_territories: usize, baseline_reinforcements: usize, n_attacks_per_turn: usize, seed: u64) -> GameState {
+pub fn start_game(
+    n_players: usize,
+    n_territories: usize,
+    baseline_reinforcements: usize,
+    n_attacks_per_turn: usize,
+    seed: u64,
+) -> GameState {
     let mut seed_array: [u8; 32] = [0; 32];
     for i in 0..8 {
         seed_array[i] = seed.to_ne_bytes()[i];
@@ -89,10 +69,6 @@ pub fn start_game(n_players: usize, n_territories: usize, baseline_reinforcement
 }
 
 impl GameState {
-    pub fn get_board_state(&self) -> ndarray::Array1<f32> {
-        return self.board.to_array();
-    }
-
     fn begin_next_turn(&mut self) {
         self.next_player();
         self.begin_reinforce_phase();
@@ -196,10 +172,33 @@ impl GameState {
             Phase::GameOver => {}
         }
     }
+    
+    fn board_state_size(&self) -> usize {
+        let dof_per_territory = 1 + board::N_MAX_PLAYERS;
+        return board::N_MAX_PLAYERS + board::N_MAX_TERRITORIES * dof_per_territory;
+    }
 
     #[getter]
     fn board_state<'py>(&self, py: Python<'py>) -> &'py numpy::PyArray1<f32> {
-        return self.get_board_state().into_pyarray(py);
+        // TODO: re-use board state vector.
+        let mut out = Array::zeros((self.board_state_size(),));
+
+        let mut next_dof = 0;
+        for i in 0..board::N_MAX_PLAYERS {
+            out[next_dof] = (self.player_idx == i) as i32 as f32;
+            next_dof += 1;
+        }
+
+        for i in 0..board::N_MAX_TERRITORIES {
+            out[next_dof] = self.board.territories[i].army_count as f32;
+            next_dof += 1;
+            // one hot encode owner
+            for j in 0..board::N_MAX_PLAYERS {
+                out[next_dof] = (self.board.territories[i].owner == j) as i32 as f32;
+                next_dof += 1;
+            }
+        }
+        return out.into_pyarray(py);
     }
 
     #[getter]

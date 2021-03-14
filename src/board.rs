@@ -1,4 +1,3 @@
-use ndarray::Array;
 use rand::prelude::*;
 
 pub const N_MAX_CARDS: usize = 0;
@@ -100,21 +99,6 @@ impl Board {
         assert_eq!(n_total_controlled, self.n_territories);
     }
 
-    pub fn to_array(&self) -> ndarray::Array1<f32> {
-        let dof_per_territory = 1 + N_MAX_PLAYERS;
-        let mut out = Array::zeros((N_MAX_TERRITORIES * dof_per_territory,));
-
-        for i in 0..N_MAX_TERRITORIES {
-            out[dof_per_territory * i + 0] = self.territories[i].army_count as f32;
-            // one hot encode owner
-            for j in 0..N_MAX_PLAYERS {
-                out[dof_per_territory * i + 1 + j] =
-                    (self.territories[i].owner == j) as i32 as f32;
-            }
-        }
-        return out;
-    }
-
     pub fn is_valid_attack(&self, player_idx: usize, from: usize, to: usize) -> bool {
         if from >= self.n_territories || self.territories[from].owner != player_idx {
             return false;
@@ -214,7 +198,7 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    fn load_board(territory_spec: [(usize, usize); N_MAX_TERRITORIES], seed: [u8; 32]) -> Board {
+    fn load_board(territory_spec: &[(usize, usize)], seed: [u8; 32]) -> Board {
         let mut territories = [Territory {
             army_count: 0,
             owner: N_MAX_PLAYERS,
@@ -228,14 +212,14 @@ mod tests {
                 color: -1,
             }; N_MAX_CARDS],
         }; N_MAX_PLAYERS];
-        for i in 0..N_MAX_TERRITORIES {
+        for i in 0..territory_spec.len() {
             if territory_spec[i].0 > 0 {
                 territories[i].army_count = territory_spec[i].0;
                 territories[i].owner = territory_spec[i].1;
                 n_players = std::cmp::max(n_players, territories[i].owner + 1);
                 player_data[territories[i].owner].n_controlled += 1;
+                n_territories = i + 1;
             } else {
-                n_territories = i;
                 break;
             }
         }
@@ -277,14 +261,17 @@ mod tests {
     #[test]
     fn test_fortify_fails_across_enemy_lines() {
         let mut board = setup_board(2, 3, [0; 32]);
-        let old_state = board.to_array();
+        let old_state = board.territories;
         board.fortify(0, 1, 1);
-        assert_eq!(old_state, board.to_array());
+        for i in 0..N_MAX_TERRITORIES {
+            assert_eq!(old_state[i].army_count, board.territories[i].army_count);
+            assert_eq!(old_state[i].owner, board.territories[i].owner);
+        }
     }
 
     #[test]
     fn test_fortify_too_many() {
-        let mut board = load_board([(5, 0), (1, 1), (1, 0), (0, 0)], [0; 32]);
+        let mut board = load_board(&[(5, 0), (1, 1), (1, 0)], [0; 32]);
         assert_eq!(board.territories[0].army_count, 5);
         board.fortify(0, 2, 20);
         assert_eq!(board.territories[0].army_count, 1);
