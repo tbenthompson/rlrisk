@@ -1,13 +1,9 @@
 use risk_ext;
-use rstest::{fixture, rstest};
+use rstest::rstest;
 
-#[fixture]
-fn game() -> risk_ext::GameState {
-    return risk_ext::start_game(2, 3, 0);
-}
-
-#[rstest]
-fn test_init_state(game: risk_ext::GameState) {
+#[rstest(n_players, n_territories, case(2, 3), case(3, 3), case(3, 4))]
+fn test_init_state(n_players: usize, n_territories: usize) {
+    let game = risk_ext::start_game(n_players, n_territories, 1, 1, 0);
     assert_eq!(game.turn_idx, 0);
     assert_eq!(game.player_idx, 0);
     assert_eq!(game.phase, risk_ext::Phase::Attack);
@@ -40,7 +36,8 @@ fn test_init_state(game: risk_ext::GameState) {
 // }
 
 #[rstest]
-fn test_attack_step(mut game: risk_ext::GameState) {
+fn test_attack_step() {
+    let mut game = risk_ext::start_game(2, 3, 1, 1, 0);
     game.step(0, 1);
     // game.step(0, 1);
     assert_eq!(game.turn_idx, 0);

@@ -2,7 +2,7 @@ use ndarray::Array;
 use rand::prelude::*;
 
 pub const N_MAX_CARDS: usize = 0;
-pub const N_MAX_TERRITORIES: usize = 3;
+pub const N_MAX_TERRITORIES: usize = 8;
 pub const N_MAX_PLAYERS: usize = 3;
 
 #[derive(Debug, Clone, Copy)]
@@ -88,23 +88,16 @@ impl Board {
         }
     }
 
-    pub fn verify_state(&self) -> bool {
+    pub fn assert_state(&self) {
         for i in 0..self.n_territories {
-            if self.territories[i].owner >= N_MAX_PLAYERS {
-                return false;
-            }
-            if self.territories[i].army_count < 1 {
-                return false;
-            }
+            assert!(self.territories[i].owner < N_MAX_PLAYERS);
+            assert!(self.territories[i].army_count >= 1);
         }
         let mut n_total_controlled = 0;
         for i in 0..self.n_players {
             n_total_controlled += self.player_data[i].n_controlled;
         }
-        if n_total_controlled != self.n_territories {
-            return false;
-        }
-        return true;
+        assert_eq!(n_total_controlled, self.n_territories);
     }
 
     pub fn to_array(&self) -> ndarray::Array1<f32> {
@@ -168,7 +161,10 @@ fn attack_mechanics(
 }
 
 pub fn setup_board(n_players: usize, n_territories: usize, seed: [u8; 32]) -> Board {
-    let n_starting_armies = N_MAX_TERRITORIES * 2;
+    assert!(n_players <= N_MAX_PLAYERS);
+    assert!(n_territories <= N_MAX_TERRITORIES);
+
+    let n_starting_armies = n_territories * 2;
     let mut board = Board {
         n_players: n_players,
         player_data: [PlayerData {
@@ -209,7 +205,7 @@ pub fn setup_board(n_players: usize, n_territories: usize, seed: [u8; 32]) -> Bo
         }
     }
 
-    assert!(board.verify_state());
+    board.assert_state();
     board
 }
 
@@ -239,7 +235,7 @@ mod tests {
                 n_players = std::cmp::max(n_players, territories[i].owner + 1);
                 player_data[territories[i].owner].n_controlled += 1;
             } else {
-                n_territories = i + 1;
+                n_territories = i;
                 break;
             }
         }
@@ -254,7 +250,7 @@ mod tests {
         };
 
         println!("{:?}", board);
-        assert!(board.verify_state());
+        board.assert_state();
         board
     }
 
@@ -288,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_fortify_too_many() {
-        let mut board = load_board([(5, 0), (1, 1), (1, 0)], [0; 32]);
+        let mut board = load_board([(5, 0), (1, 1), (1, 0), (0, 0)], [0; 32]);
         assert_eq!(board.territories[0].army_count, 5);
         board.fortify(0, 2, 20);
         assert_eq!(board.territories[0].army_count, 1);

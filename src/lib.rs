@@ -44,6 +44,8 @@ pub enum Phase {
 #[derive(Debug)]
 pub struct GameState {
     verbose: bool,
+    baseline_reinforcements: usize,
+    n_attacks_per_turn: usize,
 
     board: Board,
 
@@ -62,7 +64,7 @@ pub struct GameState {
 }
 
 #[pyfunction]
-pub fn start_game(n_players: usize, n_territories: usize, seed: u64) -> GameState {
+pub fn start_game(n_players: usize, n_territories: usize, baseline_reinforcements: usize, n_attacks_per_turn: usize, seed: u64) -> GameState {
     let mut seed_array: [u8; 32] = [0; 32];
     for i in 0..8 {
         seed_array[i] = seed.to_ne_bytes()[i];
@@ -71,6 +73,8 @@ pub fn start_game(n_players: usize, n_territories: usize, seed: u64) -> GameStat
 
     let mut state = GameState {
         verbose: false,
+        baseline_reinforcements: baseline_reinforcements,
+        n_attacks_per_turn: n_attacks_per_turn,
         turn_idx: 0,
         board: board,
         player_idx: 0,
@@ -83,8 +87,6 @@ pub fn start_game(n_players: usize, n_territories: usize, seed: u64) -> GameStat
     state.begin_reinforce_phase();
     state
 }
-
-const N_ATTACKS_PER_TURN: usize = 1;
 
 impl GameState {
     pub fn get_board_state(&self) -> ndarray::Array1<f32> {
@@ -109,7 +111,7 @@ impl GameState {
 
     fn begin_reinforce_phase(&mut self) {
         self.phase = Phase::Reinforce;
-        self.n_reinforcements = 1;
+        self.n_reinforcements = self.baseline_reinforcements;
         self.dumb_reinforce();
     }
 
@@ -142,7 +144,7 @@ impl GameState {
 
     fn begin_attack_phase(&mut self) {
         self.phase = Phase::Attack;
-        self.n_attacks_left = N_ATTACKS_PER_TURN;
+        self.n_attacks_left = self.n_attacks_per_turn;
         self.won_an_attack = false;
     }
 
