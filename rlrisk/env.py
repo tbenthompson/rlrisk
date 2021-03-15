@@ -4,10 +4,13 @@ import matplotlib.cm
 
 import risk_ext
 
+n_max_players = risk_ext.n_max_players()
+n_max_territories = risk_ext.n_max_territories()
+state_dim = risk_ext.state_dim()
 
-def vec_to_territory_matrix(game, v):
-    return v[game.n_max_players :].reshape(
-        (game.n_max_territories, 1 + game.n_max_players)
+def states_to_territory_matrix(states):
+    return states[:, n_max_players:].reshape(
+        (states.shape[0], n_max_territories, n_max_players + 1)
     )
 
 
@@ -40,64 +43,38 @@ def vis(game):
     plt.show()
 
 
-class Env:
-    def __init__(self, spec):
-        self.n_games = 0
-        self.spec = spec
-        self.reset()
+def play_games(spec, players, seeds):
+    n_games = len(seeds)
+    game_set = risk_ext.start_game_set(
+        spec["n_players"],
+        spec["n_territories"],
+        spec["baseline_reinforcements"],
+        spec["n_attacks_per_turn"],
+        seeds,
+    )
 
-    def reset(self, seed=None):
-        self.n_games += 1
-        if seed is None:
-            seed = self.n_games
-        self.game = start_game(self.spec, seed)
-        return self.game.board_state
+    player_idxs = np.empty(n_games, dtype=np.int32)
+    states = np.empty((n_games, state_dim), dtype=np.float32)
+    while True:
+        game_set.get_idxs_states(player_idxs, states)
 
-    def step(self, action):
-        self.game.step(*action)
-        done = self.game.phase == 3
-        return self.game.board_state, float(done), done
+        actions = np.zeros((n_games, 2), dtype=np.int32)
+        for i in range(len(players)):
+            this_player_idxs = player_idxs == i
+            actions[this_player_idxs] = players[i].act(i, states[this_player_idxs])
 
-    def get_state_dim(self):
-        return self.game.board_state.shape[0]
-
-    def get_action_dim(self):
-        return self.game.n_territories
-
-    def faceoff(self, players, n_games):
-        winners = np.empty(n_games, dtype=np.int32)
-        for i in range(n_games):
-            winners[i] = self.play_game(players)
-        winner_counts = np.unique(winners, return_counts=True)
-        return winners, winner_counts[0], winner_counts[1] / n_games
-
-    def play_game(env, players, verbose=False, max_turns=None, plot_each_turn=False):
-        env.reset()
-        next_turn_plot = 0
-        while True:
-            if plot_each_turn and env.game.turn_idx == next_turn_plot:
-                vis(env.game)
-                next_turn_plot += 1
-            action = players[env.game.player_idx].act(env.game, env.game.board_state)
-            if verbose:
-                print(
-                    f"turn={env.game.turn_idx}, player={env.game.player_idx}, phase={env.game.phase}, action={action}, board={env.game.board_state}"
-                )
-            _, _, done = env.step(action)
-            if done:
-                break
-            if max_turns is not None:
-                if env.game.turn_idx > max_turns:
-                    break
-        return env.game.player_idx
+        if game_set.step(actions):
+            break
+    game_set.get_idxs_states(player_idxs, states)
+    return player_idxs, states
 
 
 class DumbPlayer:
-    def act(self, game, state_vec):
-        owner_col = vec_to_territory_matrix(game, state_vec)[:, game.player_idx + 1]
-        attack_from = (owner_col == 1).argmax()
-        attack_to = (owner_col != 1).argmax()
-        return attack_from, attack_to
+    def act(self, player_idx, states):
+        state_matrix = states_to_territory_matrix(states)
+        attack_from = (state_matrix[:, :, player_idx + 1] == 1).argmax(axis=1)
+        attack_to = (state_matrix[:, :, player_idx + 1] != 1).argmax(axis=1)
+        return np.array([attack_from, attack_to]).T
 
     def learn(self, obs, actions, weights):
         return 0

@@ -5,9 +5,10 @@ import torch.nn as nn
 from torch.distributions.categorical import Categorical
 from torch.optim import Adam
 
-from env import vec_to_territory_matrix
+import env
 
 torch.manual_seed(0)
+
 
 class Batch:
     def __init__(self):
@@ -36,9 +37,9 @@ class Batch:
 
 
 class VPGPlayer:
-    def __init__(self, env):
-        self.state_dim = env.get_state_dim()
-        self.n_actions = env.get_action_dim()
+    def __init__(self):
+        self.state_dim = env.state_dim
+        self.n_actions = env.n_max_territories
         self.lr = 0.01
 
         def mlp(sizes, activation=nn.Tanh, output_activation=nn.Identity):
@@ -57,17 +58,22 @@ class VPGPlayer:
         return Categorical(logits=logits)
 
     def get_action(self, obs):
-        return self.get_policy(obs).sample().item()
+        return self.get_policy(obs).sample().numpy()
 
     def compute_loss(self, obs, act, weights):
         logp = self.get_policy(obs).log_prob(act)
         return -(logp * weights).mean()
 
-    def act(self, game, state_vec):
-        owner_col = vec_to_territory_matrix(game, state_vec)[:, game.player_idx + 1]
-        attack_from = (owner_col == 1).argmax()
-        attack_to = self.get_action(torch.as_tensor(state_vec, dtype=torch.float32))
-        return attack_from, attack_to
+    def act(self, player_idx, states):
+        if states.shape[0] == 0:
+            return np.array([]).reshape((0, 2))
+        state_matrix = env.states_to_territory_matrix(states)
+        attack_from = (state_matrix[:, :, player_idx + 1] == 1).argmax(axis=1)
+
+        states_torch = torch.as_tensor(states, dtype=torch.float32)
+        attack_to = self.get_action(states_torch)
+
+        return np.array([attack_from, attack_to]).T
 
     def learn(self, obs, actions, weights):
         self.optimizer.zero_grad()
@@ -118,5 +124,7 @@ def train(env, players, n_batches, batch_size, print_players):
             win_percentage = np.mean(rets[j])
             game_length = np.mean(lens[j])
             print(
-                f"epoch: {i}, player: {j}, loss: {loss[j]:.3f} return: {win_percentage:.3f} ep_len: {game_length:.3f}"
+                f"epoch: {i}, player: {j}, loss: {loss[j]:.3f}"
+                f" return: {win_percentage:.3f} ep_len: {game_length:.3f} "
+                f" n_games: {len(rets[j])}"
             )

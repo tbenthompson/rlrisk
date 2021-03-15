@@ -3,8 +3,9 @@ Plan:
 * (CHECK) encode the game state as a vector
 * (CHECK) try REINFORCE
 * (CHECK) add the one hot encoded player idx to the state vector
-* robust self-play
+* rust-level capability to run many games at once.
 * profile the training, any easy gains in performance? 
+* robust self-play
 * refactor/improve the risk engine.
 * implement full actor-critic VPG
 * play with fancier methods

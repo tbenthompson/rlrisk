@@ -212,6 +212,7 @@ mod tests {
                 color: -1,
             }; N_MAX_CARDS],
         }; N_MAX_PLAYERS];
+
         for i in 0..territory_spec.len() {
             if territory_spec[i].0 > 0 {
                 territories[i].army_count = territory_spec[i].0;

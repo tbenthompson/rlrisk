@@ -1,7 +1,8 @@
 mod board;
 pub use board::{setup_board, Board};
 
-use ndarray::Array;
+use ndarray;
+
 use numpy::IntoPyArray;
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
@@ -162,29 +163,8 @@ impl GameState {
         }
         self.begin_next_turn();
     }
-}
 
-#[pymethods]
-impl GameState {
-    pub fn step(&mut self, arg0: usize, arg1: usize) {
-        match self.phase {
-            Phase::Reinforce => self.reinforce_step(arg0, arg1),
-            Phase::Attack => self.attack_step(arg0, arg1),
-            Phase::Fortify => self.fortify_step(),
-            Phase::GameOver => {}
-        }
-    }
-    
-    fn board_state_size(&self) -> usize {
-        let dof_per_territory = 1 + board::N_MAX_PLAYERS;
-        return board::N_MAX_PLAYERS + board::N_MAX_TERRITORIES * dof_per_territory;
-    }
-
-    #[getter]
-    fn board_state<'py>(&self, py: Python<'py>) -> &'py numpy::PyArray1<f32> {
-        // TODO: re-use board state vector.
-        let mut out = Array::zeros((self.board_state_size(),));
-
+    fn board_state_ndarray(&self, out: &mut ndarray::ArrayViewMut<'_, f32, ndarray::Ix1>) {
         let mut next_dof = 0;
         // one hot encode which player is currently acting
         for i in 0..board::N_MAX_PLAYERS {
@@ -201,9 +181,50 @@ impl GameState {
                 next_dof += 1;
             }
         }
+    }
+}
+
+#[pyfunction]
+fn state_dim() -> usize {
+    let dof_per_territory = 1 + board::N_MAX_PLAYERS;
+    return board::N_MAX_PLAYERS + board::N_MAX_TERRITORIES * dof_per_territory;
+}
+
+#[pymethods]
+impl GameState {
+    pub fn step(&mut self, arg0: usize, arg1: usize) {
+        match self.phase {
+            Phase::Reinforce => self.reinforce_step(arg0, arg1),
+            Phase::Attack => self.attack_step(arg0, arg1),
+            Phase::Fortify => self.fortify_step(),
+            Phase::GameOver => {}
+        }
+    }
+
+    #[getter]
+    fn board_state<'py>(&self, py: Python<'py>) -> &'py numpy::PyArray1<f32> {
+        let mut out = ndarray::Array::zeros((state_dim(),));
+        self.board_state_ndarray(&mut out.view_mut());
         return out.into_pyarray(py);
     }
 
+    fn first_owned_territory(&self, player_idx: usize) -> usize {
+        for i in 0..self.board.n_territories {
+            if self.board.territories[i].owner == player_idx {
+                return i;
+            }
+        }
+        return board::N_MAX_TERRITORIES;
+    }
+
+    fn first_unowned_territory(&self, player_idx: usize) -> usize {
+        for i in 0..self.board.n_territories {
+            if self.board.territories[i].owner != player_idx {
+                return i;
+            }
+        }
+        return board::N_MAX_TERRITORIES;
+    }
     #[getter]
     fn phase(&self) -> u8 {
         return self.phase as u8;
@@ -225,15 +246,120 @@ impl GameState {
     }
 
     #[getter]
-    fn n_territories(&self) -> usize {
+    pub fn n_territories(&self) -> usize {
         return self.board.n_territories;
     }
+}
+
+// games = [start_game(game_spec, i + 1) for i in range(n_games)]
+// winners = np.empty(n_games, dtype=np.int32)
+//
+// while True:
+//     idxs_for_each_player = [[] for i in range(len(players))]
+//     states_for_each_player = [[] for i in range(len(players))]
+//     for i, g in enumerate(games):
+//         if g.phase == 3:
+//             continue
+//         idxs_for_each_player[g.player_idx].append(i)
+//         states_for_each_player[g.player_idx].append(g)
+//
+//     actions = np.zeros((len(games), 2), dtype=np.int32)
+//     for i in range(len(players)):
+//         actions[idxs_for_each_player[i]] = players[i].act(states_for_each_player[i])
+//
+//     done = True
+//     for i, g in enumerate(games):
+//         if g.phase == 3:
+//             continue
+//         g.step(*actions[i, :])
+//         if g.phase != 3:
+//             done = False
+//
+//     if done:
+//         for i, g in enumerate(games):
+//             winners[i] = g.player_idx
+//         break
+// return winners
+
+#[pyclass]
+struct GameSet {
+    games: Vec<GameState>,
+}
+
+#[pymethods]
+impl GameSet {
+    fn get_idxs_states(
+        &self,
+        py_idxs: &numpy::PyArray1<i32>,
+        py_states: &numpy::PyArray2<f32>
+    ) {
+        let mut player_idxs = unsafe { py_idxs.as_array_mut() }; 
+        let mut states = unsafe { py_states.as_array_mut() }; 
+        for i in 0..self.games.len() {
+            player_idxs[i] = self.games[i].player_idx as i32;
+            self.games[i].board_state_ndarray(&mut states.index_axis_mut(ndarray::Axis(0), i));
+        }
+    }
+
+    fn step(&mut self, py_actions: numpy::PyReadonlyArrayDyn<i32>) -> bool {
+        let actions = py_actions.as_array();
+        let mut done = true;
+        for i in 0..self.games.len() {
+            if self.games[i].phase == Phase::GameOver {
+                continue;
+            }
+            self.games[i].step(actions[[i, 0]] as usize, actions[[i, 1]] as usize);
+            if self.games[i].phase != Phase::GameOver {
+                done = false;
+            }
+        }
+        return done;
+    }
+
+    #[getter]
+    fn winners(&self) -> Vec<usize> {
+        let mut out = vec![0; self.games.len()];
+        for i in 0..self.games.len() {
+            out[i] = self.games[i].player_idx;
+        }
+        return out;
+    }
+}
+
+#[pyfunction]
+fn start_game_set(
+    n_players: usize,
+    n_territories: usize,
+    baseline_reinforcements: usize,
+    n_attacks_per_turn: usize,
+    seed: Vec<u64>,
+) -> GameSet {
+    return GameSet {
+        games: seed.iter().map(|s| start_game(n_players, n_territories, baseline_reinforcements, n_attacks_per_turn, *s)).collect()
+    };
 }
 
 #[pymodule]
 fn risk_ext(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<GameState>()?;
+    m.add_class::<GameSet>()?;
     m.add_function(wrap_pyfunction!(start_game, m)?)?;
+    m.add_function(wrap_pyfunction!(start_game_set, m)?)?;
+
+    #[pyfn(m, "n_max_territories")]
+    fn n_max_territories() -> usize {
+        return board::N_MAX_TERRITORIES;
+    }
+
+    #[pyfn(m, "n_max_players")]
+    fn n_max_players() -> usize {
+        return board::N_MAX_PLAYERS;
+    }
+
+    #[pyfn(m, "state_dim")]
+    fn py_state_dim() -> usize {
+        return state_dim();
+    }
 
     Ok(())
 }
