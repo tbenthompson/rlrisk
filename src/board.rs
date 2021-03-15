@@ -265,7 +265,7 @@ mod tests {
     fn test_fortify_fails_across_enemy_lines() {
         let mut board = setup_board(2, 3, [0; 32]);
         let old_state = board.territories;
-        board.fortify(0, 1, 1);
+        board.fortify(0, 2, 1);
         for i in 0..N_MAX_TERRITORIES {
             assert_eq!(old_state[i].army_count, board.territories[i].army_count);
             assert_eq!(old_state[i].owner, board.territories[i].owner);

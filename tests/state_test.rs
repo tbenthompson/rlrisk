@@ -49,9 +49,9 @@ fn test_attack_step() {
 #[test]
 fn test_two_attacks() {
     let mut game = risk_ext::start_game(2, 3, 1, 2, 0);
-    game.step(0, 1);
+    game.step(0, 2);
     assert_eq!(game.player_idx, 0);
-    game.step(0, 1);
+    game.step(0, 2);
 
     assert_eq!(game.turn_idx, 0);
     assert_eq!(game.player_idx, 1);
