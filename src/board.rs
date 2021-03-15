@@ -1,8 +1,8 @@
 use rand::prelude::*;
 
 pub const N_MAX_CARDS: usize = 0;
-pub const N_MAX_TERRITORIES: usize = 8;
-pub const N_MAX_PLAYERS: usize = 3;
+pub const N_MAX_TERRITORIES: usize = 3;
+pub const N_MAX_PLAYERS: usize = 2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Territory {
@@ -170,14 +170,16 @@ pub fn setup_board(n_players: usize, n_territories: usize, seed: [u8; 32]) -> Bo
     };
 
     let rand_territory = rand::distributions::Uniform::from(0..board.n_territories);
+    let mut unclaimed_territories = n_territories;
     for _i in 0..n_starting_armies {
         for j in 0..n_players {
             let ti = loop {
                 let t = rand_territory.sample(&mut board.rng);
                 if board.territories[t].owner == N_MAX_PLAYERS {
+                    unclaimed_territories -= 1;
                     break t
                 }
-                if board.territories[t].owner == j {
+                if unclaimed_territories == 0 && board.territories[t].owner == j {
                     break t
                 }
             };

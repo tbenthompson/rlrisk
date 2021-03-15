@@ -164,7 +164,10 @@ impl GameState {
         self.begin_next_turn();
     }
 
-    fn board_state_ndarray(&self, out: &mut ndarray::ArrayViewMut<'_, f32, ndarray::Ix1>) {
+    fn board_state_ndarray(
+        &self,
+        out: &mut ndarray::ArrayViewMut<'_, f32, ndarray::Ix1>,
+    ) {
         let mut next_dof = 0;
         // one hot encode which player is currently acting
         for i in 0..board::N_MAX_PLAYERS {
@@ -251,36 +254,6 @@ impl GameState {
     }
 }
 
-// games = [start_game(game_spec, i + 1) for i in range(n_games)]
-// winners = np.empty(n_games, dtype=np.int32)
-//
-// while True:
-//     idxs_for_each_player = [[] for i in range(len(players))]
-//     states_for_each_player = [[] for i in range(len(players))]
-//     for i, g in enumerate(games):
-//         if g.phase == 3:
-//             continue
-//         idxs_for_each_player[g.player_idx].append(i)
-//         states_for_each_player[g.player_idx].append(g)
-//
-//     actions = np.zeros((len(games), 2), dtype=np.int32)
-//     for i in range(len(players)):
-//         actions[idxs_for_each_player[i]] = players[i].act(states_for_each_player[i])
-//
-//     done = True
-//     for i, g in enumerate(games):
-//         if g.phase == 3:
-//             continue
-//         g.step(*actions[i, :])
-//         if g.phase != 3:
-//             done = False
-//
-//     if done:
-//         for i, g in enumerate(games):
-//             winners[i] = g.player_idx
-//         break
-// return winners
-
 #[pyclass]
 struct GameSet {
     games: Vec<GameState>,
@@ -288,41 +261,36 @@ struct GameSet {
 
 #[pymethods]
 impl GameSet {
-    fn get_idxs_states(
+    fn observe(
         &self,
+        py_game_over: &numpy::PyArray1<bool>,
         py_idxs: &numpy::PyArray1<i32>,
-        py_states: &numpy::PyArray2<f32>
+        py_states: &numpy::PyArray2<f32>,
     ) {
-        let mut player_idxs = unsafe { py_idxs.as_array_mut() }; 
-        let mut states = unsafe { py_states.as_array_mut() }; 
+        let mut game_over = unsafe { py_game_over.as_array_mut() };
+        let mut player_idxs = unsafe { py_idxs.as_array_mut() };
+        let mut states = unsafe { py_states.as_array_mut() };
         for i in 0..self.games.len() {
+            game_over[i] = self.games[i].phase == Phase::GameOver;
             player_idxs[i] = self.games[i].player_idx as i32;
-            self.games[i].board_state_ndarray(&mut states.index_axis_mut(ndarray::Axis(0), i));
+            self.games[i]
+                .board_state_ndarray(&mut states.index_axis_mut(ndarray::Axis(0), i));
         }
     }
 
-    fn step(&mut self, py_actions: numpy::PyReadonlyArrayDyn<i32>) -> bool {
+    fn step(&mut self, py_actions: numpy::PyReadonlyArray2<i32>) -> bool {
         let actions = py_actions.as_array();
-        let mut done = true;
+        let mut all_done = true;
         for i in 0..self.games.len() {
             if self.games[i].phase == Phase::GameOver {
                 continue;
             }
             self.games[i].step(actions[[i, 0]] as usize, actions[[i, 1]] as usize);
             if self.games[i].phase != Phase::GameOver {
-                done = false;
+                all_done = false;
             }
         }
-        return done;
-    }
-
-    #[getter]
-    fn winners(&self) -> Vec<usize> {
-        let mut out = vec![0; self.games.len()];
-        for i in 0..self.games.len() {
-            out[i] = self.games[i].player_idx;
-        }
-        return out;
+        return all_done;
     }
 }
 
@@ -335,7 +303,18 @@ fn start_game_set(
     seed: Vec<u64>,
 ) -> GameSet {
     return GameSet {
-        games: seed.iter().map(|s| start_game(n_players, n_territories, baseline_reinforcements, n_attacks_per_turn, *s)).collect()
+        games: seed
+            .iter()
+            .map(|s| {
+                start_game(
+                    n_players,
+                    n_territories,
+                    baseline_reinforcements,
+                    n_attacks_per_turn,
+                    *s,
+                )
+            })
+            .collect(),
     };
 }
 

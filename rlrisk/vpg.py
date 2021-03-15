@@ -10,37 +10,11 @@ import env
 torch.manual_seed(0)
 
 
-class Batch:
-    def __init__(self):
-        self.obs = []
-        self.actions = []
-        self.weights = []
-        self.returns = []
-        self.lengths = []
-        self.start_episode()
-
-    def record(self, obs, action):
-        self.obs.append(obs.copy())
-        self.actions.append(action[1])
-        self.ep_length += 1
-
-    def finish_episode(self, reward):
-        self.ep_returns = reward
-        self.returns.append(self.ep_returns)
-        self.lengths.append(self.ep_length)
-        self.weights += [self.ep_returns] * self.ep_length
-        self.start_episode()
-
-    def start_episode(self):
-        self.ep_length = 0
-        self.ep_returns = 0
-
-
 class VPGPlayer:
-    def __init__(self):
+    def __init__(self, lr=0.01):
         self.state_dim = env.state_dim
         self.n_actions = env.n_max_territories
-        self.lr = 0.01
+        self.lr = lr
 
         def mlp(sizes, activation=nn.Tanh, output_activation=nn.Identity):
             # Build a feedforward neural network.
@@ -87,24 +61,41 @@ class VPGPlayer:
         return batch_loss
 
 
-def train_one_epoch(env, players, batch_size):
-    batches = [Batch() for p in players]
-    obs = env.reset()
+class Batch:
+    def __init__(self):
+        self.obs = []
+        self.actions = []
+        self.weights = []
+        self.returns = []
+        self.lengths = []
 
-    go = True
-    while go:
-        # print(env.game.turn_idx, env.game.player_idx)
-        action = players[env.game.player_idx].act(env.game, obs)
-        batches[env.game.player_idx].record(obs, action)
-        obs, reward, done = env.step(action)
-        if done:
-            for i in range(len(players)):
-                player_reward = reward if i == env.game.player_idx else 0
-                b = batches[i]
-                b.finish_episode(player_reward)
-                if len(b.obs) > batch_size:
-                    go = False
-            obs = env.reset()
+    def record_game(self, obs, action, rew):
+        for i in range(obs.shape[0]):
+            self.obs.append(obs[i])
+            self.actions.append(action[i, 1])
+            self.weights.append(rew)
+        self.returns.append(rew)
+        self.lengths.append(obs.shape[0])
+
+
+def train_one_epoch(spec, players, batch_size):
+    batches = [Batch() for p in players]
+    winners, final_state, state_history = env.play_games(
+        spec, players, np.random.randint(1e8, size=batch_size), record=True
+    )
+
+    rewards = np.array([(winners == i).astype(np.float32) for i in range(len(players))])
+    player_idxs = np.array([data[1] for data in state_history])
+    obs = np.array([data[2] for data in state_history])
+    acts = np.array([data[3] for data in state_history])
+
+    for i in range(len(players)):
+        for j in range(batch_size):
+            batches[i].record_game(
+                obs[player_idxs[:, j] == i, j],
+                acts[player_idxs[:, j] == i, j],
+                rewards[i, j],
+            )
 
     loss = []
     for i in range(len(players)):
@@ -114,12 +105,12 @@ def train_one_epoch(env, players, batch_size):
             loss.append(
                 players[i].learn(batches[i].obs, batches[i].actions, batches[i].weights)
             )
-    return loss, [b.returns for b in batches], [b.lengths for b in batches]
+    return loss, [b.returns for b in batches], [b.lengths for b in batches], batches
 
 
-def train(env, players, n_batches, batch_size, print_players):
+def train(spec, players, n_batches, batch_size, print_players):
     for i in range(n_batches):
-        loss, rets, lens = train_one_epoch(env, players, batch_size)
+        loss, rets, lens, _ = train_one_epoch(spec, players, batch_size)
         for j in print_players:
             win_percentage = np.mean(rets[j])
             game_length = np.mean(lens[j])
