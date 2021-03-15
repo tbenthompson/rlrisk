@@ -43,7 +43,7 @@ def vis(state):
     plt.show()
 
 
-def play_games(spec, players, seeds, record=False, should_plot=False):
+def play_games(spec, players, seeds, verbose=False, record=False, should_plot=False):
     n_games = len(seeds)
     game_set = start_game_set(spec, seeds)
     history = []
@@ -61,6 +61,11 @@ def play_games(spec, players, seeds, record=False, should_plot=False):
         for i in range(len(players)):
             this_player_idxs = player_idxs == i
             actions[this_player_idxs] = players[i].act(i, states[this_player_idxs])
+
+        if verbose:
+            print(
+                f"player={player_idxs[0]}, action={actions[0]}, board={states[0]}"
+            )
 
         if record:
             history.append(

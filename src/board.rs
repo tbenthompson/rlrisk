@@ -1,8 +1,8 @@
 use rand::prelude::*;
 
 pub const N_MAX_CARDS: usize = 0;
-pub const N_MAX_TERRITORIES: usize = 3;
-pub const N_MAX_PLAYERS: usize = 2;
+pub const N_MAX_TERRITORIES: usize = 8;
+pub const N_MAX_PLAYERS: usize = 3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Territory {

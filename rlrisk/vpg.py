@@ -80,20 +80,23 @@ class Batch:
 
 def train_one_epoch(spec, players, batch_size):
     batches = [Batch() for p in players]
+    seeds = np.arange(batch_size)
     winners, final_state, state_history = env.play_games(
-        spec, players, np.random.randint(1e8, size=batch_size), record=True
+        spec, players, seeds, record=True
     )
 
     rewards = np.array([(winners == i).astype(np.float32) for i in range(len(players))])
+    game_not_over = ~np.array([data[0] for data in state_history])
     player_idxs = np.array([data[1] for data in state_history])
+
     obs = np.array([data[2] for data in state_history])
     acts = np.array([data[3] for data in state_history])
 
     for i in range(len(players)):
         for j in range(batch_size):
             batches[i].record_game(
-                obs[player_idxs[:, j] == i, j],
-                acts[player_idxs[:, j] == i, j],
+                obs[(player_idxs[:, j] == i) & game_not_over[:, j], j],
+                acts[(player_idxs[:, j] == i) & game_not_over[:, j], j],
                 rewards[i, j],
             )
 
