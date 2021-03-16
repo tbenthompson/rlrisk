@@ -4,7 +4,7 @@ use rstest::rstest;
 
 #[rstest(n_players, n_territories, case(2, 3), case(3, 3), case(3, 4))]
 fn test_init_state(n_players: usize, n_territories: usize) {
-    let game = risk_ext::start_game(n_players, n_territories, 1, 1, 0);
+    let game = risk_ext::start_game(n_players, n_territories, 1, 1, 1, 0);
     assert_eq!(game.turn_idx, 0);
     assert_eq!(game.player_idx, 0);
     assert_eq!(game.phase, risk_ext::Phase::Attack);
@@ -38,7 +38,7 @@ fn test_init_state(n_players: usize, n_territories: usize) {
 
 #[test]
 fn test_attack_step() {
-    let mut game = risk_ext::start_game(2, 3, 1, 1, 0);
+    let mut game = risk_ext::start_game(2, 3, 1, 1, 10, 0);
     game.step(0, 1);
     // game.step(0, 1);
     assert_eq!(game.turn_idx, 0);
@@ -48,7 +48,7 @@ fn test_attack_step() {
 
 #[test]
 fn test_two_attacks() {
-    let mut game = risk_ext::start_game(2, 3, 1, 2, 0);
+    let mut game = risk_ext::start_game(2, 3, 1, 2, 10, 0);
     game.step(0, 2);
     assert_eq!(game.player_idx, 0);
     game.step(0, 2);
@@ -61,7 +61,7 @@ fn test_two_attacks() {
 #[test]
 fn test_skip_attack() {
     // five attacks per turn, but skip the turn by specifying an invalid attack
-    let mut game = risk_ext::start_game(2, 3, 1, 5, 0);
+    let mut game = risk_ext::start_game(2, 3, 1, 5, 10, 0);
     game.step(0, 0);
     assert_eq!(game.turn_idx, 0);
     assert_eq!(game.player_idx, 1);
@@ -73,7 +73,7 @@ fn test_no_changes_after_gameover() {
     // This is a useful test since in a vectorized context, some games will end before others and
     // it's nice if we can just keep performing actions on the finished games
     // without affecting the final state
-    let mut game = risk_ext::start_game(2, 2, 100, 100, 0);
+    let mut game = risk_ext::start_game(2, 2, 100, 100, 1000, 0);
     for _i in 0..100 {
         game.step(0, 1);
     }
@@ -88,4 +88,13 @@ fn test_no_changes_after_gameover() {
     }
     assert_eq!(game.phase, risk_ext::Phase::GameOver);
     assert_eq!(game.player_idx, 0);
+}
+
+#[test]
+fn test_game_ends_after_max_turns() {
+    let mut game = risk_ext::start_game(2, 2, 1, 1, 1, 0);
+    game.step(0, 0);
+    game.step(0, 0);
+    assert_eq!(game.phase, risk_ext::Phase::GameOver);
+    assert!(game.player_idx >= 2);
 }

@@ -21,6 +21,7 @@ pub struct GameState {
     verbose: bool,
     baseline_reinforcements: usize,
     n_attacks_per_turn: usize,
+    max_turns: usize,
 
     board: Board,
 
@@ -44,6 +45,7 @@ pub fn start_game(
     n_territories: usize,
     baseline_reinforcements: usize,
     n_attacks_per_turn: usize,
+    max_turns: usize,
     seed: u64,
 ) -> GameState {
     let mut seed_array: [u8; 32] = [0; 32];
@@ -56,6 +58,7 @@ pub fn start_game(
         verbose: false,
         baseline_reinforcements: baseline_reinforcements,
         n_attacks_per_turn: n_attacks_per_turn,
+        max_turns: max_turns,
         turn_idx: 0,
         board: board,
         player_idx: 0,
@@ -73,6 +76,11 @@ impl GameState {
     fn begin_next_turn(&mut self) {
         self.next_player();
         self.begin_reinforce_phase();
+        if self.turn_idx >= self.max_turns {
+            self.player_idx = board::N_MAX_PLAYERS;
+            self.phase = Phase::GameOver;
+            return;
+        }
     }
 
     fn next_player(&mut self) {
@@ -300,6 +308,7 @@ fn start_game_set(
     n_territories: usize,
     baseline_reinforcements: usize,
     n_attacks_per_turn: usize,
+    max_turns: usize,
     seed: Vec<u64>,
 ) -> GameSet {
     return GameSet {
@@ -311,6 +320,7 @@ fn start_game_set(
                     n_territories,
                     baseline_reinforcements,
                     n_attacks_per_turn,
+                    max_turns,
                     *s,
                 )
             })

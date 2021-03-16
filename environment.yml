@@ -3,6 +3,7 @@ channels:
   - pytorch
   - conda-forge
 dependencies:
+  - mamba
   - numpy
   - scipy
   - scikit-learn
@@ -18,7 +19,8 @@ dependencies:
   - pytorch 
   - torchvision
   - torchaudio
-  - cudatoolkit=11.1
+  - cudatoolkit>=11.1
   - line_profiler
   - py-spy
   - pyinstrument
+  - jupyterlab

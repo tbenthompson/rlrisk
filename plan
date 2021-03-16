@@ -3,20 +3,27 @@ Plan:
 * (CHECK) encode the game state as a vector
 * (CHECK) try REINFORCE
 * (CHECK) add the one hot encoded player idx to the state vector
-* rust-level capability to run many games at once.
-* profile the training, any easy gains in performance? 
-* robust self-play
+* (CHECK) rust-level capability to run many games at once.
+* (CHECK) profile the training, any easy gains in performance? 
+* (CHECK) robust self-play
+* (CHECK) implement actor-critic VPG
+* record history of self-players and try playing later versions against earlier versions
+* implement lambda-GAE
+* implement PPO
+* implement KL divergence check/early-stopping
+* try adding connectivity
+* try adding continents
+* try adding reinforcement phase
+* ugly gui to play human against computer
 * refactor/improve the risk engine.
-* implement full actor-critic VPG
-* play with fancier methods
 * cool idea: what if we just convert the Board struct to binary?!
 
 Dimensions on which we can simplify Risk rules:
 * fewer territories (simple == 2 or 3)
 * territory connectivity (simple == fully connected)
 * fewer players (simple == 2)
-* continents (simple == no continents)
 * number of reinforcements (simple == constant)
+* continents (simple == no continents)
 * number of cards (simple == 0)
 * number of attacks allowed per turn (simple == 1)
 * move full stack vs choice in move size (simple == move full stack)

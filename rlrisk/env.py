@@ -21,6 +21,7 @@ def start_game_set(spec, seeds):
         spec["n_territories"],
         spec["baseline_reinforcements"],
         spec["n_attacks_per_turn"],
+        spec["max_turns"],
         seeds,
     )
 
@@ -63,9 +64,7 @@ def play_games(spec, players, seeds, verbose=False, record=False, should_plot=Fa
             actions[this_player_idxs] = players[i].act(i, states[this_player_idxs])
 
         if verbose:
-            print(
-                f"player={player_idxs[0]}, action={actions[0]}, board={states[0]}"
-            )
+            print(f"player={player_idxs[0]}, action={actions[0]}, board={states[0]}")
 
         if record:
             history.append(
@@ -78,7 +77,6 @@ def play_games(spec, players, seeds, verbose=False, record=False, should_plot=Fa
     game_set.observe(game_over, player_idxs, states)
     return player_idxs, states, history
 
-
 class DumbPlayer:
     def act(self, player_idx, states):
         state_matrix = states_to_territory_matrix(states)
@@ -86,5 +84,5 @@ class DumbPlayer:
         attack_to = (state_matrix[:, :, player_idx + 1] != 1).argmax(axis=1)
         return np.array([attack_from, attack_to]).T
 
-    def learn(self, obs, actions, weights):
-        return 0
+    def learn(self, *args):
+        return None
