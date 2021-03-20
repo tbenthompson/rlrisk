@@ -1,7 +1,6 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.cm
-
+import matplotlib.pyplot as plt
+import numpy as np
 import risk_ext
 
 n_max_players = risk_ext.n_max_players()
@@ -77,6 +76,7 @@ def play_games(spec, players, seeds, verbose=False, record=False, should_plot=Fa
     game_set.observe(game_over, player_idxs, states)
     return player_idxs, states, history
 
+
 class DumbPlayer:
     def act(self, player_idx, states):
         state_matrix = states_to_territory_matrix(states)
@@ -84,5 +84,8 @@ class DumbPlayer:
         attack_to = (state_matrix[:, :, player_idx + 1] != 1).argmax(axis=1)
         return np.array([attack_from, attack_to]).T
 
-    def learn(self, *args):
+    def record_games(self, *args):
+        pass
+
+    def learn(self):
         return None

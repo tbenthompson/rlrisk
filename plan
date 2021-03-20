@@ -7,6 +7,9 @@ Plan:
 * (CHECK) profile the training, any easy gains in performance? 
 * (CHECK) robust self-play
 * (CHECK) implement actor-critic VPG
+* (CHECK) pytorch on gpu
+* (CHECK) fix self-play implementation to train on all samples at once
+* better logging and history (look at spinning up and baselines for things worth logging)
 * record history of self-players and try playing later versions against earlier versions
 * implement lambda-GAE
 * implement PPO
@@ -14,6 +17,7 @@ Plan:
 * try adding connectivity
 * try adding continents
 * try adding reinforcement phase
+* "transfer learning" from gamespec 1 to gamespec 2
 * ugly gui to play human against computer
 * refactor/improve the risk engine.
 * cool idea: what if we just convert the Board struct to binary?!

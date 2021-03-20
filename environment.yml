@@ -16,11 +16,12 @@ dependencies:
   - pip
   - ipdb
   - matplotlib
-  - pytorch 
-  - torchvision
-  - torchaudio
+  # - pytorch 
+  # - torchvision
+  # - torchaudio
   - cudatoolkit>=11.1
   - line_profiler
   - py-spy
   - pyinstrument
   - jupyterlab
+  - tensorboard
