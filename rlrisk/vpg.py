@@ -6,8 +6,6 @@ import torch.optim
 import rlrisk.env
 import rlrisk.simple_policy
 
-torch.manual_seed(0)
-
 
 class VPGPlayer(rlrisk.simple_policy.SimplePolicyPlayer):
     """
@@ -34,8 +32,11 @@ class VPGPlayer(rlrisk.simple_policy.SimplePolicyPlayer):
             return None
 
         torch_observations = torch.as_tensor(self.observations, dtype=torch.float32)
-        value_estimates = self.get_value(torch_observations)
         torch_returns_to_go = torch.as_tensor(self.returns_to_go, dtype=torch.float32)
+
+        value_estimates = self.get_value(torch_observations)
+
+        # Compute GAE-Lambda advantage
 
         self.pi_optimizer.zero_grad()
         loss_pi = self.compute_loss(
@@ -46,18 +47,23 @@ class VPGPlayer(rlrisk.simple_policy.SimplePolicyPlayer):
         loss_pi.backward()
         self.pi_optimizer.step()
 
+        initial_loss_vf = None
         for i in range(self.train_v_iters):
             self.vf_optimizer.zero_grad()
             loss_vf = self.compute_value_loss(torch_observations, torch_returns_to_go)
+            if initial_loss_vf is None:
+                initial_loss_vf = loss_vf
             loss_vf.backward()
             self.vf_optimizer.step()
 
         win_percentage = np.mean(self.did_i_win)
         game_length = np.mean(self.lengths)
-        print(
-            f" loss_pi: {loss_pi:.3f} loss_vf: {loss_vf:.3f}"
-            f" return: {win_percentage:.3f} ep_len: {game_length:.3f} "
-            f" n_games: {len(self.did_i_win)}"
-        )
-        self.reset_recording()
+        report = {
+            "Win percentage": win_percentage,
+            "Average game length": game_length,
+            "Policy loss": loss_pi,
+            "Initial value loss": initial_loss_vf,
+            "Final value loss": loss_vf,
+        }
+        self.finish_epoch(self, report)
         return None

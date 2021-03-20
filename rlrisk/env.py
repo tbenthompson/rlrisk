@@ -1,11 +1,12 @@
 import matplotlib.cm
 import matplotlib.pyplot as plt
 import numpy as np
-import risk_ext
 
-n_max_players = risk_ext.n_max_players()
-n_max_territories = risk_ext.n_max_territories()
-state_dim = risk_ext.state_dim()
+import rlrisk.risk_ext
+
+n_max_players = rlrisk.risk_ext.n_max_players()
+n_max_territories = rlrisk.risk_ext.n_max_territories()
+state_dim = rlrisk.risk_ext.state_dim()
 
 
 def states_to_territory_matrix(states):
@@ -15,7 +16,7 @@ def states_to_territory_matrix(states):
 
 
 def start_game_set(spec, seeds):
-    return risk_ext.start_game_set(
+    return rlrisk.risk_ext.start_game_set(
         spec["n_players"],
         spec["n_territories"],
         spec["baseline_reinforcements"],

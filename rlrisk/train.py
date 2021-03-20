@@ -1,6 +1,9 @@
 import numpy as np
+import torch
 
 import rlrisk.env
+
+torch.manual_seed(0)
 
 # TODO: Build a "Trainer" module that pairs up varying levels/types of players.
 next_seed = 0

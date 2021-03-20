@@ -9,11 +9,16 @@ Plan:
 * (CHECK) implement actor-critic VPG
 * (CHECK) pytorch on gpu
 * (CHECK) fix self-play implementation to train on all samples at once
-* better logging and history (look at spinning up and baselines for things worth logging)
-* record history of self-players and try playing later versions against earlier versions
+* log KL divergence
 * implement lambda-GAE
+* try making the learning player always player 0 from the state vector.
+* use a variant of the game that encourages short games.
 * implement PPO
 * implement KL divergence check/early-stopping
+* more robust way of determining speed of learning/quality of algorithm
+* try methods against openai gym to check performance.
+* parallelize play_games
+* play games against earlier models, league play
 * try adding connectivity
 * try adding continents
 * try adding reinforcement phase
