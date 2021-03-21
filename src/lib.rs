@@ -20,10 +20,11 @@ pub enum Phase {
 pub struct GameState {
     verbose: bool,
     baseline_reinforcements: usize,
+    reinforcements_per_territory: f32,
     n_attacks_per_turn: usize,
     max_turns: usize,
 
-    board: Board,
+    pub board: Board,
 
     #[pyo3(get)]
     pub turn_idx: usize,
@@ -44,6 +45,7 @@ pub fn start_game(
     n_players: usize,
     n_territories: usize,
     baseline_reinforcements: usize,
+    reinforcements_per_territory: f32,
     n_attacks_per_turn: usize,
     max_turns: usize,
     seed: u64,
@@ -57,6 +59,7 @@ pub fn start_game(
     let mut state = GameState {
         verbose: false,
         baseline_reinforcements: baseline_reinforcements,
+        reinforcements_per_territory: reinforcements_per_territory,
         n_attacks_per_turn: n_attacks_per_turn,
         max_turns: max_turns,
         turn_idx: 0,
@@ -96,7 +99,9 @@ impl GameState {
 
     fn begin_reinforce_phase(&mut self) {
         self.phase = Phase::Reinforce;
-        self.n_reinforcements = self.baseline_reinforcements;
+        let n_t = self.board.player_data[self.player_idx].n_controlled as f32;
+        let n_rt = (self.reinforcements_per_territory * n_t).floor() as usize;
+        self.n_reinforcements = self.baseline_reinforcements + n_rt;
         self.dumb_reinforce();
     }
 
@@ -141,7 +146,7 @@ impl GameState {
             if outcome.2 {
                 self.won_an_attack = true;
                 self.board
-                    .fortify(from, to, self.board.territories[from].army_count - 1);
+                    .fortify(from, to, self.board.territories[from].n_armies - 1);
                 if self.board.player_data[self.player_idx].n_controlled
                     == self.board.n_territories
                 {
@@ -184,7 +189,7 @@ impl GameState {
         }
 
         for i in 0..board::N_MAX_TERRITORIES {
-            out[next_dof] = self.board.territories[i].army_count as f32;
+            out[next_dof] = self.board.territories[i].n_armies as f32;
             next_dof += 1;
             // one hot encode owner
             for j in 0..board::N_MAX_PLAYERS {
@@ -307,6 +312,7 @@ fn start_game_set(
     n_players: usize,
     n_territories: usize,
     baseline_reinforcements: usize,
+    reinforcements_per_territory: f32,
     n_attacks_per_turn: usize,
     max_turns: usize,
     seed: Vec<u64>,
@@ -319,6 +325,7 @@ fn start_game_set(
                     n_players,
                     n_territories,
                     baseline_reinforcements,
+                    reinforcements_per_territory,
                     n_attacks_per_turn,
                     max_turns,
                     *s,

@@ -6,7 +6,7 @@ pub const N_MAX_PLAYERS: usize = 3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Territory {
-    pub army_count: usize,
+    pub n_armies: usize,
     pub owner: usize,
 }
 
@@ -36,22 +36,22 @@ pub struct Board {
 
 impl Board {
     pub fn reinforce(&mut self, territory_idx: usize, n_armies: usize) {
-        self.territories[territory_idx].army_count += n_armies;
+        self.territories[territory_idx].n_armies += n_armies;
     }
 
     pub fn attack(&mut self, from: usize, to: usize) -> (usize, usize, bool) {
         let t = &mut self.territories;
-        let n_attacker = std::cmp::min(t[from].army_count - 1, 3);
-        let n_defender = std::cmp::min(t[to].army_count, 2);
+        let n_attacker = std::cmp::min(t[from].n_armies - 1, 3);
+        let n_defender = std::cmp::min(t[to].n_armies, 2);
         let mut dice: [u8; 5] = [0; 5];
         for i in 0..5 {
             dice[i] = self.dice_uniform.sample(&mut self.rng);
         }
         let (attacker_deaths, defender_deaths) =
             attack_mechanics(n_attacker, n_defender, dice);
-        t[from].army_count -= attacker_deaths;
-        t[to].army_count -= defender_deaths;
-        let conquer = t[to].army_count == 0;
+        t[from].n_armies -= attacker_deaths;
+        t[to].n_armies -= defender_deaths;
+        let conquer = t[to].n_armies == 0;
         if conquer {
             self.player_data[t[to].owner].n_controlled -= 1;
             self.player_data[t[from].owner].n_controlled += 1;
@@ -70,9 +70,9 @@ impl Board {
             return 0;
         }
         let n_armies =
-            std::cmp::min(n_requested_armies, self.territories[from].army_count - 1);
-        self.territories[from].army_count -= n_armies;
-        self.territories[to].army_count += n_armies;
+            std::cmp::min(n_requested_armies, self.territories[from].n_armies - 1);
+        self.territories[from].n_armies -= n_armies;
+        self.territories[to].n_armies += n_armies;
         return n_armies;
     }
 
@@ -90,7 +90,7 @@ impl Board {
     pub fn assert_state(&self) {
         for i in 0..self.n_territories {
             assert!(self.territories[i].owner < N_MAX_PLAYERS);
-            assert!(self.territories[i].army_count >= 1);
+            assert!(self.territories[i].n_armies >= 1);
         }
         let mut n_total_controlled = 0;
         for i in 0..self.n_players {
@@ -161,7 +161,7 @@ pub fn setup_board(n_players: usize, n_territories: usize, seed: [u8; 32]) -> Bo
 
         n_territories: n_territories,
         territories: [Territory {
-            army_count: 0,
+            n_armies: 0,
             owner: N_MAX_PLAYERS,
         }; N_MAX_TERRITORIES],
 
@@ -187,7 +187,7 @@ pub fn setup_board(n_players: usize, n_territories: usize, seed: [u8; 32]) -> Bo
                 board.territories[ti].owner = j;
                 board.player_data[j].n_controlled += 1;
             }
-            board.territories[ti].army_count += 1;
+            board.territories[ti].n_armies += 1;
         }
     }
 
@@ -202,7 +202,7 @@ mod tests {
 
     fn load_board(territory_spec: &[(usize, usize)], seed: [u8; 32]) -> Board {
         let mut territories = [Territory {
-            army_count: 0,
+            n_armies: 0,
             owner: N_MAX_PLAYERS,
         }; N_MAX_TERRITORIES];
         let mut n_players = 0;
@@ -217,7 +217,7 @@ mod tests {
 
         for i in 0..territory_spec.len() {
             if territory_spec[i].0 > 0 {
-                territories[i].army_count = territory_spec[i].0;
+                territories[i].n_armies = territory_spec[i].0;
                 territories[i].owner = territory_spec[i].1;
                 n_players = std::cmp::max(n_players, territories[i].owner + 1);
                 player_data[territories[i].owner].n_controlled += 1;
@@ -267,7 +267,7 @@ mod tests {
         let old_state = board.territories;
         board.fortify(0, 2, 1);
         for i in 0..N_MAX_TERRITORIES {
-            assert_eq!(old_state[i].army_count, board.territories[i].army_count);
+            assert_eq!(old_state[i].n_armies, board.territories[i].n_armies);
             assert_eq!(old_state[i].owner, board.territories[i].owner);
         }
     }
@@ -275,9 +275,9 @@ mod tests {
     #[test]
     fn test_fortify_too_many() {
         let mut board = load_board(&[(5, 0), (1, 1), (1, 0)], [0; 32]);
-        assert_eq!(board.territories[0].army_count, 5);
+        assert_eq!(board.territories[0].n_armies, 5);
         board.fortify(0, 2, 20);
-        assert_eq!(board.territories[0].army_count, 1);
-        assert_eq!(board.territories[2].army_count, 5);
+        assert_eq!(board.territories[0].n_armies, 1);
+        assert_eq!(board.territories[2].n_armies, 5);
     }
 }

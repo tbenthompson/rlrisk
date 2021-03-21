@@ -9,6 +9,7 @@ Plan:
 * (CHECK) implement actor-critic VPG
 * (CHECK) pytorch on gpu
 * (CHECK) fix self-play implementation to train on all samples at once
+* add intermediate rewards. (0.5/n_max_turns) * (n_my_armies/n_total_armies) MAKE SURE TO APPLY REWARDS TO PREVIOUS TIME STEP.
 * log KL divergence
 * implement lambda-GAE
 * try making the learning player always player 0 from the state vector.
